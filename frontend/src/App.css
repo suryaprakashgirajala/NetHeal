@@ -1,0 +1,1120 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #0b1020;
+  color: #f4f7fb;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 40px;
+  border-bottom: 1px solid #1f2940;
+  background: #0f172a;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.topbar p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+}
+
+.system-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.dashboard {
+  width: min(1400px, 92%);
+  margin: 30px auto;
+  display: grid;
+  gap: 22px;
+}
+
+.panel {
+  background: #111827;
+  border: 1px solid #243047;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.panel-header p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.primary-button,
+.send-button,
+.failure-button,
+.reset-button {
+  border: none;
+  border-radius: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.primary-button {
+  background: #2563eb;
+  color: white;
+}
+
+.send-button {
+  background: #16a34a;
+  color: white;
+}
+
+.failure-button {
+  background: #dc2626;
+  color: white;
+}
+
+.reset-button {
+  background: #475569;
+  color: white;
+}
+
+.topology-placeholder {
+  min-height: 360px;
+  margin-top: 24px;
+  border: 1px dashed #334155;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  position: relative;
+  flex-wrap: wrap;
+  padding: 80px 40px 90px;
+}
+
+.router-node {
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  border: 2px solid #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  background: #172554;
+  transition: 0.2s ease;
+}
+
+.router-node:hover {
+  transform: translateY(-3px);
+}
+
+.router-failed {
+  border-color: #ef4444;
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.topology-info {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.topology-info strong {
+  color: #93c5fd;
+}
+
+.topology-info span {
+  color: #f8fafc;
+}
+
+.topology-info small {
+  color: #94a3b8;
+}
+
+.control-grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group label {
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.control-group select {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: white;
+}
+
+.reset-area {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.stat-card {
+  background: #111827;
+  border: 1px solid #243047;
+  border-radius: 16px;
+  padding: 22px;
+}
+
+.stat-card span {
+  display: block;
+  color: #94a3b8;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.stat-card strong {
+  font-size: 28px;
+}
+
+.online-text {
+  font-size: 20px !important;
+}
+
+.links-panel {
+  min-height: 180px;
+}
+
+.link-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.link-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.link-active {
+  font-weight: 700;
+  text-align: right;
+}
+
+.link-failed {
+  font-weight: 700;
+  color: #f87171;
+  text-align: right;
+}
+
+.event-log {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event {
+  display: flex;
+  gap: 18px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.event-time {
+  color: #64748b;
+  min-width: 70px;
+}
+
+@media (max-width: 1000px) {
+
+  .control-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+
+  .topbar {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .dashboard {
+    width: 94%;
+  }
+
+  .control-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topology-placeholder {
+    padding: 50px 20px 100px;
+  }
+
+  .link-item {
+    grid-template-columns: 1fr;
+  }
+
+  .link-active,
+  .link-failed {
+    text-align: left;
+  }
+}
+
+.add-router-container {
+  margin-top: 22px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.add-router-container input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: white;
+  outline: none;
+}
+
+.add-router-container input:focus {
+  border-color: #60a5fa;
+}
+
+.add-router-container input::placeholder {
+  color: #64748b;
+}
+
+.empty-message {
+  color: #64748b;
+  font-size: 15px;
+}
+
+@media (max-width: 650px) {
+
+  .add-router-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+}
+
+/* ==========================================
+   ADD LINK FORM
+   ========================================== */
+
+.link-form-grid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.link-form-grid input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: white;
+  outline: none;
+}
+
+.link-form-grid input:focus {
+  border-color: #60a5fa;
+}
+
+@media (max-width: 1000px) {
+
+  .link-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+}
+
+@media (max-width: 650px) {
+
+  .link-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+/* ==========================================
+   REACT FLOW NETWORK GRAPH
+   ========================================== */
+
+.flow-container {
+  height: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-container .react-flow {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+}
+
+.router-node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.router-node-content strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.router-node-content span {
+  font-size: 9px;
+  letter-spacing: 0.7px;
+  opacity: 0.8;
+}
+
+.flow-container .react-flow__edge-path {
+  transition: stroke 0.2s ease;
+}
+
+.flow-container .react-flow__edge-text {
+  font-size: 12px;
+}
+
+.flow-container .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #334155;
+}
+
+.flow-container .react-flow__controls-button {
+  background: #111827;
+  border-color: #334155;
+  color: white;
+}
+
+.flow-container .react-flow__minimap {
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 16px;
+  padding: 12px 4px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.graph-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-source {
+  background: #22c55e;
+}
+
+.legend-destination {
+  background: #a78bfa;
+}
+
+.legend-route {
+  background: #38bdf8;
+}
+
+.legend-failed {
+  background: #ef4444;
+}
+
+/* ==========================================
+   REACT FLOW
+   ========================================== */
+
+.flow-container {
+  height: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-container .react-flow {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+}
+
+.router-node-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.router-node-content strong {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.router-node-content span {
+  font-size: 9px;
+  letter-spacing: 0.7px;
+  opacity: 0.85;
+}
+
+.flow-container .react-flow__edge-path {
+  transition: stroke 0.2s ease;
+}
+
+.flow-container .react-flow__edge-text {
+  font-size: 12px;
+}
+
+.flow-container .react-flow__controls {
+  border: 1px solid #334155;
+  box-shadow: none;
+}
+
+.flow-container .react-flow__controls-button {
+  background: #111827;
+  border-color: #334155;
+  color: #ffffff;
+}
+
+.flow-container .react-flow__minimap {
+  background: #0f172a !important;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.flow-container .react-flow__minimap svg {
+  background: #0f172a;
+}
+
+.flow-container .react-flow__minimap-mask {
+  fill: rgba(15, 23, 42, 0.65);
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 16px;
+  padding: 12px 4px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.graph-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-legend i {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border-radius: 50%;
+}
+
+.legend-source {
+  background: #22c55e;
+}
+
+.legend-destination {
+  background: #a78bfa;
+}
+
+.legend-route {
+  background: #38bdf8;
+}
+
+.legend-failed {
+  background: #ef4444;
+}
+
+/* ==========================================
+   CUSTOM NETWORK OVERVIEW
+   ========================================== */
+
+.flow-container {
+  position: relative;
+  height: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-container .react-flow {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+}
+
+.router-node-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.router-node-content strong {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.router-node-content span {
+  font-size: 9px;
+  letter-spacing: 0.7px;
+  opacity: 0.85;
+}
+
+/* Overview box */
+
+.network-overview {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 220px;
+  height: 150px;
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 20;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.40);
+}
+
+.overview-title {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.overview-canvas {
+  position: relative;
+  width: 100%;
+  height: calc(100% - 32px);
+}
+
+.overview-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.overview-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+  z-index: 2;
+}
+
+/* Graph controls */
+
+.flow-container .react-flow__controls {
+  border: 1px solid #334155;
+  box-shadow: none;
+}
+
+.flow-container .react-flow__controls-button {
+  background: #111827;
+  border-color: #334155;
+  color: #ffffff;
+}
+
+/* Legend */
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 16px;
+  padding: 12px 4px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.graph-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-legend i {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border-radius: 50%;
+}
+
+.legend-source {
+  background: #22c55e;
+}
+
+.legend-destination {
+  background: #a78bfa;
+}
+
+.legend-route {
+  background: #38bdf8;
+}
+
+.legend-failed {
+  background: #ef4444;
+}
+
+/* ==========================================
+   DAGRE NETWORK GRAPH
+   ========================================== */
+
+.flow-container {
+  position: relative;
+  height: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-container .react-flow {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+}
+
+.router-node-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.router-node-content strong {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.router-node-content span {
+  font-size: 9px;
+  letter-spacing: 0.7px;
+  opacity: 0.85;
+}
+
+/* ==========================================
+   NETWORK OVERVIEW
+   ========================================== */
+
+.network-overview {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 220px;
+  height: 150px;
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 20;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.40);
+}
+
+.overview-title {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.overview-canvas {
+  position: relative;
+  width: 100%;
+  height: calc(100% - 32px);
+}
+
+.overview-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.overview-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+  z-index: 2;
+}
+
+/* ==========================================
+   GRAPH CONTROLS
+   ========================================== */
+
+.flow-container .react-flow__controls {
+  border: 1px solid #334155;
+  box-shadow: none;
+}
+
+.flow-container .react-flow__controls-button {
+  background: #111827;
+  border-color: #334155;
+  color: #ffffff;
+}
+
+/* ==========================================
+   GRAPH LEGEND
+   ========================================== */
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 16px;
+  padding: 12px 4px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.graph-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-legend i {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border-radius: 50%;
+}
+
+.legend-source {
+  background: #22c55e;
+}
+
+.legend-destination {
+  background: #a78bfa;
+}
+
+.legend-route {
+  background: #38bdf8;
+}
+
+.legend-failed {
+  background: #ef4444;
+}
+
+/* =========================================================
+   PACKET SIMULATION
+   ========================================================= */
+
+.routing-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.packet-button {
+  min-height: 44px;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #d97706;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.packet-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.packet-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.packet-node-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.packet-status-panel {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #0b1220;
+  border: 1px solid #26364d;
+}
+
+.packet-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  font-weight: 700;
+}
+
+.packet-ready {
+  color: #94a3b8;
+}
+
+.packet-transmitting {
+  color: #fbbf24;
+}
+
+.packet-delivered {
+  color: #4ade80;
+}
+
+.packet-details {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .routing-buttons {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .routing-buttons button {
+    width: 100%;
+  }
+
+  .packet-status-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ==========================================
+   NETHEAL SELF-HEALING DEMO
+   Add these rules at the END of App.css
+========================================== */
+
+.routing-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.self-heal-button {
+  border: 1px solid #a855f7;
+  background: linear-gradient(135deg, #7e22ce, #9333ea);
+  color: #ffffff;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    opacity 0.18s ease;
+  box-shadow: 0 8px 22px rgba(147, 51, 234, 0.22);
+}
+
+.self-heal-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(147, 51, 234, 0.34);
+}
+
+.self-heal-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.packet-healing-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #a855f7;
+  background: rgba(124, 58, 237, 0.08);
+  border-radius: 7px;
+  color: #c4b5fd;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.packet-recovering {
+  color: #fbbf24;
+  font-weight: 800;
+  animation: netheal-pulse 1s ease-in-out infinite;
+}
+
+.packet-failed {
+  color: #f87171;
+  font-weight: 800;
+}
+
+@keyframes netheal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 900px) {
+  .routing-buttons {
+    width: 100%;
+  }
+
+  .routing-buttons button {
+    flex: 1 1 160px;
+  }
+}
