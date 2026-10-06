@@ -1118,3 +1118,259 @@ button:disabled {
     flex: 1 1 160px;
   }
 }
+
+
+
+/* =========================================================
+   RESILIO NETWORK HEALTH MONITOR
+   ========================================================= */
+
+.health-panel {
+  overflow: hidden;
+}
+
+.health-status-pill,
+.health-status-text {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.health-status-pill {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+}
+
+.health-good {
+  color: #15803d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.health-warning {
+  color: #b45309;
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.health-critical {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.health-dashboard {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.6fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.health-overall-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.health-score-ring {
+  width: 105px;
+  height: 105px;
+  flex: 0 0 105px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 10px solid #dbeafe;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+}
+
+.health-score-value {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.health-score-label {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.health-overall-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.health-overall-copy strong {
+  font-size: 16px;
+}
+
+.health-overall-copy span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.health-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.health-mini-card {
+  padding: 15px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.health-mini-card span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  margin-bottom: 7px;
+}
+
+.health-mini-card strong {
+  font-size: 22px;
+}
+
+.health-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.health-link-row {
+  display: grid;
+  grid-template-columns: 150px minmax(360px, 1fr) minmax(180px, 0.55fr);
+  align-items: center;
+  gap: 18px;
+  padding: 13px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.health-link-name {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.health-link-name strong {
+  font-size: 13px;
+}
+
+.health-link-name span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.health-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(70px, 1fr));
+  gap: 10px;
+}
+
+.health-telemetry-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.health-telemetry-grid strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.health-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.health-progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.health-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.45s ease;
+}
+
+.health-progress-fill.health-good {
+  background: #22c55e;
+}
+
+.health-progress-fill.health-warning {
+  background: #f59e0b;
+}
+
+.health-progress-fill.health-critical {
+  background: #ef4444;
+}
+
+.health-status-text {
+  min-width: 68px;
+  text-align: right;
+  font-size: 10px;
+}
+
+.health-empty {
+  padding: 18px;
+  text-align: center;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.health-disclaimer {
+  margin-top: 13px;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1050px) {
+  .health-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .health-link-row {
+    grid-template-columns: 1fr;
+  }
+
+  .health-status-text {
+    text-align: left;
+  }
+}
+
+@media (max-width: 680px) {
+  .health-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-telemetry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-progress-wrap {
+    margin-top: 4px;
+  }
+}

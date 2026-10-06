@@ -77,6 +77,168 @@ const X_GAP = 230;
 const Y_GAP = 150;
 
 // =========================================================
+// SIMULATED NETWORK HEALTH TELEMETRY
+// =========================================================
+
+const clamp = (value, minimum, maximum) =>
+  Math.min(Math.max(value, minimum), maximum);
+
+const stableHash = (text) => {
+  let hash = 0;
+
+  for (let index = 0; index < text.length; index++) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+};
+
+const getHealthStatus = (score) => {
+  if (score >= 85) {
+    return "HEALTHY";
+  }
+
+  if (score >= 65) {
+    return "WARNING";
+  }
+
+  return "CRITICAL";
+};
+
+const getHealthClass = (score) => {
+  if (score >= 85) {
+    return "health-good";
+  }
+
+  if (score >= 65) {
+    return "health-warning";
+  }
+
+  return "health-critical";
+};
+
+const getSimulatedLinkTelemetry = (link, tick) => {
+
+  if (!link.active) {
+    return {
+      latency: 0,
+      packetLoss: 100,
+      congestion: 100,
+      availability: 0,
+      health: 0,
+      status: "CRITICAL",
+      healthClass: "health-critical",
+    };
+  }
+
+  const identity = `${link.source}-${link.destination}`;
+  const hash = stableHash(identity);
+  const phase = hash % 17;
+  const wave =
+    (Math.sin(tick * 0.85 + phase) + 1) / 2;
+
+  const latency = Math.round(
+    8 + Number(link.cost || 1) * 4 + (hash % 8) + wave * 6
+  );
+
+  const packetLoss = Number(
+    (0.2 + (hash % 4) * 0.15 + wave * 0.45).toFixed(1)
+  );
+
+  const congestion = Math.round(
+    15 + (hash % 30) + wave * 28
+  );
+
+  const availability = Number(
+    (99.5 - wave * 1.2 - (hash % 3) * 0.1).toFixed(1)
+  );
+
+  const latencyScore = clamp(
+    100 - Math.max(latency - 5, 0) * 1.7,
+    0,
+    100
+  );
+
+  const lossScore = clamp(
+    100 - packetLoss * 12,
+    0,
+    100
+  );
+
+  const congestionScore =
+    clamp(100 - congestion, 0, 100);
+
+  const health = Math.round(
+    availability * 0.25 +
+    latencyScore * 0.2 +
+    lossScore * 0.25 +
+    congestionScore * 0.3
+  );
+
+  return {
+    latency,
+    packetLoss,
+    congestion,
+    availability,
+    health,
+    status: getHealthStatus(health),
+    healthClass: getHealthClass(health),
+  };
+};
+
+const getSimulatedRouterTelemetry = (
+  router,
+  links,
+  linkTelemetryMap
+) => {
+
+  if (!router.active) {
+    return {
+      health: 0,
+      status: "CRITICAL",
+      healthClass: "health-critical",
+      connectedLinks: 0,
+    };
+  }
+
+  const connectedLinks = links.filter(
+    (link) =>
+      link.active &&
+      (link.source === router.id ||
+        link.destination === router.id)
+  );
+
+  if (connectedLinks.length === 0) {
+    return {
+      health: 0,
+      status: "CRITICAL",
+      healthClass: "health-critical",
+      connectedLinks: 0,
+    };
+  }
+
+  const totalHealth = connectedLinks.reduce(
+    (sum, link) =>
+      sum +
+      (linkTelemetryMap[
+        `${link.source}-${link.destination}`
+      ]?.health || 0),
+    0
+  );
+
+  const health = Math.round(
+    totalHealth / connectedLinks.length
+  );
+
+  return {
+    health,
+    status: getHealthStatus(health),
+    healthClass: getHealthClass(health),
+    connectedLinks: connectedLinks.length,
+  };
+};
+
+// =========================================================
 // CLEAN NETWORK LAYOUT
 // =========================================================
 
@@ -348,6 +510,22 @@ const getCleanLayout = (
   return positions;
 };
 
+function appendNetworkEvent(setEvents, type, text) {
+  const event = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    time: new Date().toLocaleTimeString([], {
+      hour12: false,
+    }),
+    type,
+    text,
+  };
+
+  setEvents((previous) => [
+    event,
+    ...previous,
+  ].slice(0, 12));
+}
+
 function App() {
 
   // =====================================================
@@ -415,6 +593,16 @@ function App() {
       "Ready for packet transmission."
     );
 
+  const [networkEvents, setNetworkEvents] =
+    useState([]);
+
+  // Simulated telemetry refreshes periodically so the dashboard
+  // behaves like a live network monitor. These values are for
+  // simulation/visualization; they are not measurements of the
+  // user's physical network.
+  const [healthTick, setHealthTick] =
+    useState(0);
+
   // Prevent the self-healing demo from injecting more than one
   // automatic failure during a single packet transmission. The actual
   // failed link is selected dynamically from the live topology.
@@ -426,7 +614,7 @@ function App() {
 
   const [message, setMessage] =
     useState(
-      "Connecting to NetHeal..."
+      "Connecting to Resilio..."
     );
 
   const [loading, setLoading] =
@@ -998,6 +1186,117 @@ function App() {
     ]);
 
   // =====================================================
+  // NETWORK HEALTH MONITORING
+  // =====================================================
+
+  useEffect(() => {
+
+    const intervalId =
+      setInterval(() => {
+        setHealthTick((previous) => previous + 1);
+      }, 4000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+
+  }, []);
+
+  const healthData = useMemo(() => {
+
+    const linkTelemetry = {};
+
+    network.links.forEach((link) => {
+
+      linkTelemetry[
+        `${link.source}-${link.destination}`
+      ] = getSimulatedLinkTelemetry(
+        link,
+        healthTick
+      );
+
+    });
+
+    const activeLinks = network.links.filter(
+      (link) => link.active
+    );
+
+    const activeRouters = network.routers.filter(
+      (router) => router.active
+    );
+
+    const routerTelemetry =
+      network.routers.reduce((result, router) => {
+
+        result[router.id] =
+          getSimulatedRouterTelemetry(
+            router,
+            network.links,
+            linkTelemetry
+          );
+
+        return result;
+
+      }, {});
+
+    const activeLinkHealth =
+      activeLinks.length > 0
+        ? Math.round(
+            activeLinks.reduce(
+              (sum, link) =>
+                sum +
+                linkTelemetry[
+                  `${link.source}-${link.destination}`
+                ].health,
+              0
+            ) / activeLinks.length
+          )
+        : 0;
+
+    const activeRouterHealth =
+      activeRouters.length > 0
+        ? Math.round(
+            activeRouters.reduce(
+              (sum, router) =>
+                sum +
+                (routerTelemetry[router.id]?.health || 0),
+              0
+            ) / activeRouters.length
+          )
+        : 0;
+
+    const overallHealth =
+      activeLinks.length > 0 && activeRouters.length > 0
+        ? Math.round(
+            activeLinkHealth * 0.65 +
+            activeRouterHealth * 0.35
+          )
+        : activeLinks.length > 0
+        ? activeLinkHealth
+        : activeRouterHealth;
+
+    const atRiskLinks = activeLinks.filter(
+      (link) =>
+        linkTelemetry[
+          `${link.source}-${link.destination}`
+        ].health < 65
+    ).length;
+
+    return {
+      linkTelemetry,
+      routerTelemetry,
+      overallHealth,
+      overallStatus: getHealthStatus(overallHealth),
+      overallClass: getHealthClass(overallHealth),
+      atRiskLinks,
+    };
+
+  }, [
+    network,
+    healthTick,
+  ]);
+
+  // =====================================================
   // LOAD NETWORK
   // =====================================================
 
@@ -1143,6 +1442,12 @@ function App() {
         setMessage(
           "Network connected successfully."
         );
+
+        appendNetworkEvent(
+          setNetworkEvents,
+          "SYSTEM",
+          `Network synchronized: ${activeRouters.length} active routers, ${activeLinks.length} active links.`
+        );
       }
 
     } catch (error) {
@@ -1202,6 +1507,12 @@ function App() {
       await loadNetwork();
 
       setMessage(
+        `Router ${id} added successfully.`
+      );
+
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
         `Router ${id} added successfully.`
       );
 
@@ -1296,6 +1607,12 @@ function App() {
         `Link ${linkSource} ↔ ${linkDestination} added successfully.`
       );
 
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
+        `Link ${linkSource} ↔ ${linkDestination} added with cost ${cost}.`
+      );
+
     } catch (error) {
 
       console.error(error);
@@ -1383,6 +1700,12 @@ function App() {
           )}`
         );
 
+        appendNetworkEvent(
+          setNetworkEvents,
+          "ROUTE",
+          `Route discovered: ${data.path.join(" → ")} (cost ${data.cost}).`
+        );
+
       } else {
 
         setRoute([]);
@@ -1390,6 +1713,12 @@ function App() {
         setRouteCost(0);
 
         setMessage(
+          `No route available from ${source} to ${destination}.`
+        );
+
+        appendNetworkEvent(
+          setNetworkEvents,
+          "WARN",
           `No route available from ${source} to ${destination}.`
         );
       }
@@ -1536,6 +1865,12 @@ function App() {
         failureMessage
       );
 
+      appendNetworkEvent(
+        setNetworkEvents,
+        "FAILURE",
+        failureMessage
+      );
+
     } catch (error) {
 
       console.error(error);
@@ -1587,6 +1922,12 @@ function App() {
         " → "
       )}`
     );
+
+    appendNetworkEvent(
+      setNetworkEvents,
+      "PACKET",
+      `Packet ${nextPacketId} transmission started via ${transmissionRoute.join(" → ")}.`
+    );
   };
 
   // =====================================================
@@ -1624,7 +1965,13 @@ function App() {
     setMessage(
       `Self-healing demo started: ${demoRoute.join(
         " → "
-      )}. NetHeal will dynamically select a recoverable link failure.`
+      )}. Resilio will dynamically select a recoverable link failure.`
+    );
+
+    appendNetworkEvent(
+      setNetworkEvents,
+      "HEALING",
+      `Self-healing demo started. Monitoring ${demoRoute.join(" → ")} for a recoverable failure.`
     );
   };
 
@@ -1828,6 +2175,13 @@ function App() {
           setMessage(
             `Self-healing demo stopped: no safe failure candidate was available from ${currentRouter} to ${destination}.`
           );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "WARN",
+            `No safe failure candidate was available from ${currentRouter} to ${destination}.`
+          );
+
           return;
         }
 
@@ -1845,10 +2199,22 @@ function App() {
         setPacketActive(false);
         setHealingInProgress(true);
         setHealingMessage(
-          `NetHeal selected a recoverable failure dynamically: Link ${failureCandidate.source} ↔ ${failureCandidate.destination}`
+          `Resilio selected a recoverable failure dynamically: Link ${failureCandidate.source} ↔ ${failureCandidate.destination}`
         );
         setMessage(
-          `⚠ Dynamic failure selected: Link ${failureCandidate.source} ↔ ${failureCandidate.destination}. NetHeal is detecting the failure...`
+          `⚠ Dynamic failure selected: Link ${failureCandidate.source} ↔ ${failureCandidate.destination}. Resilio is detecting the failure...`
+        );
+
+        appendNetworkEvent(
+          setNetworkEvents,
+          "FAILURE",
+          `Dynamic failure selected: Link ${failureCandidate.source} ↔ ${failureCandidate.destination}.`
+        );
+
+        appendNetworkEvent(
+          setNetworkEvents,
+          "HEALING",
+          `Failure detector activated at ${currentRouter}.`
         );
 
         try {
@@ -1931,6 +2297,18 @@ function App() {
             )}. Packet ${packetNumber} is continuing.`
           );
 
+          appendNetworkEvent(
+            setNetworkEvents,
+            "ROUTE",
+            `Alternate route found: ${recoveredRoute.join(" → ")} (cost ${routeData.cost}).`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "HEALING",
+            `Packet ${packetNumber} rerouted successfully. Continuing transmission.`
+          );
+
         } catch (error) {
 
           console.error(error);
@@ -1946,6 +2324,12 @@ function App() {
               error.message ||
               "No alternate route available."
             }`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "WARN",
+            `Self-healing failed: ${error.message || "No alternate route available."}`
           );
         }
 
@@ -1980,11 +2364,23 @@ function App() {
               " → "
             )}`
           );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "SUCCESS",
+            `Packet ${packetNumber} delivered successfully after self-healing via ${currentRoute.join(" → ")}.`
+          );
         } else {
           setMessage(
             `Packet ${packetNumber} delivered successfully via ${currentRoute.join(
               " → "
             )}`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "SUCCESS",
+            `Packet ${packetNumber} delivered successfully via ${currentRoute.join(" → ")}.`
           );
         }
       }
@@ -2066,6 +2462,17 @@ function App() {
 
       setRecoveryCount(0);
 
+      setNetworkEvents([
+        {
+          id: `${Date.now()}-reset`,
+          time: new Date().toLocaleTimeString([], {
+            hour12: false,
+          }),
+          type: "SYSTEM",
+          text: "Network reset successfully. All default routers and links restored.",
+        },
+      ]);
+
       await loadNetwork();
 
       setMessage(
@@ -2112,7 +2519,7 @@ function App() {
         <div>
 
           <h1>
-            NetHeal
+            Resilio
           </h1>
 
           <p>
@@ -3078,6 +3485,30 @@ function App() {
           <div className="stat-card">
 
             <span>
+              Network Health
+            </span>
+
+            <strong>
+              {healthData.overallHealth}/100
+            </strong>
+
+          </div>
+
+          <div className="stat-card">
+
+            <span>
+              At-Risk Links
+            </span>
+
+            <strong>
+              {healthData.atRiskLinks}
+            </strong>
+
+          </div>
+
+          <div className="stat-card">
+
+            <span>
               Backend Status
             </span>
 
@@ -3087,6 +3518,221 @@ function App() {
                 : "OFFLINE"}
             </strong>
 
+          </div>
+
+        </section>
+
+        {/* ==========================================
+            NETWORK HEALTH MONITOR
+        ========================================== */}
+
+        <section className="panel health-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <h2>
+                Network Health Monitor
+              </h2>
+
+              <p>
+                Simulated live telemetry for network condition analysis
+              </p>
+
+            </div>
+
+            <div
+              className={`health-status-pill ${healthData.overallClass}`}
+            >
+              {healthData.overallStatus}
+            </div>
+
+          </div>
+
+          <div className="health-dashboard">
+
+            <div className="health-overall-card">
+
+              <div className="health-score-ring">
+
+                <div className="health-score-value">
+                  {healthData.overallHealth}
+                </div>
+
+                <div className="health-score-label">
+                  / 100
+                </div>
+
+              </div>
+
+              <div className="health-overall-copy">
+
+                <strong>
+                  Overall Network Health
+                </strong>
+
+                <span>
+                  Resilio combines link and router condition scores
+                  to create a single network-health view.
+                </span>
+
+              </div>
+
+            </div>
+
+            <div className="health-metric-grid">
+
+              <div className="health-mini-card">
+                <span>Monitored Links</span>
+                <strong>
+                  {network.links.length}
+                </strong>
+              </div>
+
+              <div className="health-mini-card">
+                <span>Healthy Links</span>
+                <strong>
+                  {network.links.filter(
+                    (link) =>
+                      link.active &&
+                      healthData.linkTelemetry[
+                        `${link.source}-${link.destination}`
+                      ]?.health >= 85
+                  ).length}
+                </strong>
+              </div>
+
+              <div className="health-mini-card">
+                <span>Warning Links</span>
+                <strong>
+                  {network.links.filter(
+                    (link) =>
+                      link.active &&
+                      healthData.linkTelemetry[
+                        `${link.source}-${link.destination}`
+                      ]?.health >= 65 &&
+                      healthData.linkTelemetry[
+                        `${link.source}-${link.destination}`
+                      ]?.health < 85
+                  ).length}
+                </strong>
+              </div>
+
+              <div className="health-mini-card">
+                <span>Critical / Failed</span>
+                <strong>
+                  {network.links.filter(
+                    (link) =>
+                      !link.active ||
+                      healthData.linkTelemetry[
+                        `${link.source}-${link.destination}`
+                      ]?.health < 65
+                  ).length}
+                </strong>
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="health-link-list">
+
+            {network.links.length === 0 ? (
+
+              <div className="health-empty">
+                No links available for health monitoring.
+              </div>
+
+            ) : (
+
+              network.links.map((link) => {
+
+                const telemetry =
+                  healthData.linkTelemetry[
+                    `${link.source}-${link.destination}`
+                  ];
+
+                return (
+
+                  <div
+                    className="health-link-row"
+                    key={`health-${link.source}-${link.destination}`}
+                  >
+
+                    <div className="health-link-name">
+                      <strong>
+                        {link.source} ↔ {link.destination}
+                      </strong>
+                      <span>
+                        Cost: {link.cost}
+                      </span>
+                    </div>
+
+                    <div className="health-telemetry-grid">
+
+                      <span>
+                        Latency
+                        <strong>
+                          {telemetry.latency} ms
+                        </strong>
+                      </span>
+
+                      <span>
+                        Packet Loss
+                        <strong>
+                          {telemetry.packetLoss}%
+                        </strong>
+                      </span>
+
+                      <span>
+                        Congestion
+                        <strong>
+                          {telemetry.congestion}%
+                        </strong>
+                      </span>
+
+                      <span>
+                        Health
+                        <strong>
+                          {telemetry.health}/100
+                        </strong>
+                      </span>
+
+                    </div>
+
+                    <div className="health-progress-wrap">
+
+                      <div className="health-progress-track">
+                        <div
+                          className={`health-progress-fill ${telemetry.healthClass}`}
+                          style={{
+                            width: `${telemetry.health}%`,
+                          }}
+                        />
+                      </div>
+
+                      <span
+                        className={`health-status-text ${telemetry.healthClass}`}
+                      >
+                        {telemetry.status}
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                );
+
+              })
+
+            )}
+
+          </div>
+
+          <div className="health-disclaimer">
+            * Telemetry values are simulated for the network simulator and
+            are used to demonstrate health-aware analysis.
           </div>
 
         </section>
@@ -3178,17 +3824,48 @@ function App() {
 
           <div className="event-log">
 
-            <div className="event">
+            {networkEvents.length === 0 ? (
 
-              <span className="event-time">
-                NETHEAL
-              </span>
+              <div className="event event-empty">
 
-              <span>
-                {message}
-              </span>
+                <span className="event-time">
+                  RESILIO
+                </span>
 
-            </div>
+                <span>
+                  {message}
+                </span>
+
+              </div>
+
+            ) : (
+
+              networkEvents.map(
+                (event) => (
+
+                  <div
+                    className={`event event-${event.type.toLowerCase()}`}
+                    key={event.id}
+                  >
+
+                    <span className="event-time">
+                      {event.time}
+                    </span>
+
+                    <span className="event-type">
+                      {event.type}
+                    </span>
+
+                    <span className="event-message">
+                      {event.text}
+                    </span>
+
+                  </div>
+
+                )
+              )
+
+            )}
 
           </div>
 
