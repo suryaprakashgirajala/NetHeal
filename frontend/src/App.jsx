@@ -526,6 +526,271 @@ function appendNetworkEvent(setEvents, type, text) {
   ].slice(0, 12));
 }
 
+
+// =========================================================
+// PURE ADAPTIVE ROUTE ANALYSIS (USED AFTER LIVE FAILURES)
+// =========================================================
+//
+// This helper evaluates a supplied network snapshot rather than
+// relying on React state that may not have updated yet. That makes
+// post-failure recovery decisions deterministic and health-aware.
+const getAdaptiveRouteAnalysisForNetwork = (
+  networkSnapshot,
+  startRouter,
+  targetRouter,
+  tick
+) => {
+  const activeRouterIds = new Set(
+    networkSnapshot.routers
+      .filter((router) => router.active)
+      .map((router) => router.id)
+  );
+
+  if (
+    !activeRouterIds.has(startRouter) ||
+    !activeRouterIds.has(targetRouter)
+  ) {
+    return [];
+  }
+
+  const adjacency = {};
+  activeRouterIds.forEach((routerId) => {
+    adjacency[routerId] = [];
+  });
+
+  networkSnapshot.links.forEach((link) => {
+    if (
+      !link.active ||
+      !activeRouterIds.has(link.source) ||
+      !activeRouterIds.has(link.destination)
+    ) {
+      return;
+    }
+
+    adjacency[link.source].push(link.destination);
+    adjacency[link.destination].push(link.source);
+  });
+
+  Object.values(adjacency).forEach((neighbors) => {
+    neighbors.sort((a, b) => a.localeCompare(b));
+  });
+
+  const candidatePaths = [];
+  const maximumRoutes = 60;
+  const maximumDepth = activeRouterIds.size;
+
+  const dfs = (currentRouter, path, visited) => {
+    if (candidatePaths.length >= maximumRoutes) {
+      return;
+    }
+
+    if (currentRouter === targetRouter) {
+      candidatePaths.push(path.slice());
+      return;
+    }
+
+    if (path.length >= maximumDepth) {
+      return;
+    }
+
+    for (const neighbour of adjacency[currentRouter] || []) {
+      if (visited.has(neighbour)) {
+        continue;
+      }
+
+      visited.add(neighbour);
+      path.push(neighbour);
+      dfs(neighbour, path, visited);
+      path.pop();
+      visited.delete(neighbour);
+
+      if (candidatePaths.length >= maximumRoutes) {
+        return;
+      }
+    }
+  };
+
+  dfs(
+    startRouter,
+    [startRouter],
+    new Set([startRouter])
+  );
+
+  if (candidatePaths.length === 0) {
+    return [];
+  }
+
+  const telemetryMap = {};
+  networkSnapshot.links.forEach((link) => {
+    telemetryMap[
+      `${link.source}-${link.destination}`
+    ] = getSimulatedLinkTelemetry(link, tick);
+  });
+
+  const rawMetrics = candidatePaths.map((path) => {
+    const pathLinks = [];
+
+    for (let index = 0; index < path.length - 1; index += 1) {
+      const link = networkSnapshot.links.find(
+        (candidate) =>
+          candidate.active &&
+          (
+            (candidate.source === path[index] &&
+              candidate.destination === path[index + 1]) ||
+            (candidate.source === path[index + 1] &&
+              candidate.destination === path[index])
+          )
+      );
+
+      if (!link) {
+        return null;
+      }
+
+      pathLinks.push(link);
+    }
+
+    if (pathLinks.length === 0) {
+      return null;
+    }
+
+    const telemetryValues = pathLinks.map(
+      (link) =>
+        telemetryMap[
+          `${link.source}-${link.destination}`
+        ] || {
+          latency: 0,
+          packetLoss: 100,
+          congestion: 100,
+          health: 0,
+        }
+    );
+
+    const totalCost = pathLinks.reduce(
+      (sum, link) => sum + Number(link.cost || 0),
+      0
+    );
+
+    const averageLatency =
+      telemetryValues.reduce(
+        (sum, telemetry) =>
+          sum + Number(telemetry.latency || 0),
+        0
+      ) / telemetryValues.length;
+
+    const averagePacketLoss =
+      telemetryValues.reduce(
+        (sum, telemetry) =>
+          sum + Number(telemetry.packetLoss || 0),
+        0
+      ) / telemetryValues.length;
+
+    const averageCongestion =
+      telemetryValues.reduce(
+        (sum, telemetry) =>
+          sum + Number(telemetry.congestion || 0),
+        0
+      ) / telemetryValues.length;
+
+    const averageHealth =
+      telemetryValues.reduce(
+        (sum, telemetry) =>
+          sum + Number(telemetry.health || 0),
+        0
+      ) / telemetryValues.length;
+
+    return {
+      path,
+      cost: totalCost,
+      latency: Math.round(averageLatency),
+      packetLoss: Number(averagePacketLoss.toFixed(1)),
+      congestion: Math.round(averageCongestion),
+      health: Math.round(averageHealth),
+    };
+  }).filter(Boolean);
+
+  if (rawMetrics.length === 0) {
+    return [];
+  }
+
+  const costs = rawMetrics.map((item) => item.cost);
+  const minimumCost = Math.min(...costs);
+  const maximumCost = Math.max(...costs);
+
+  const scored = rawMetrics.map((item) => {
+    const costScore =
+      maximumCost === minimumCost
+        ? 100
+        : clamp(
+            100 -
+              ((item.cost - minimumCost) /
+                (maximumCost - minimumCost)) *
+                100,
+            0,
+            100
+          );
+
+    const latencyScore = clamp(
+      100 - item.latency * 2.2,
+      0,
+      100
+    );
+
+    const packetLossScore = clamp(
+      100 - item.packetLoss * 18,
+      0,
+      100
+    );
+
+    const congestionScore = clamp(
+      100 - item.congestion,
+      0,
+      100
+    );
+
+    const score = Math.round(
+      costScore * 0.25 +
+      item.health * 0.35 +
+      latencyScore * 0.15 +
+      packetLossScore * 0.10 +
+      congestionScore * 0.15
+    );
+
+    const risk =
+      score >= 80
+        ? "LOW"
+        : score >= 60
+        ? "MEDIUM"
+        : "HIGH";
+
+    return {
+      ...item,
+      costScore: Math.round(costScore),
+      latencyScore: Math.round(latencyScore),
+      packetLossScore: Math.round(packetLossScore),
+      congestionScore: Math.round(congestionScore),
+      score,
+      risk,
+    };
+  });
+
+  return scored.sort((first, second) => {
+    if (second.score !== first.score) {
+      return second.score - first.score;
+    }
+
+    if (first.cost !== second.cost) {
+      return first.cost - second.cost;
+    }
+
+    if (second.health !== first.health) {
+      return second.health - first.health;
+    }
+
+    return first.path.length - second.path.length;
+  });
+};
+
+
 function App() {
 
   // =====================================================
@@ -553,6 +818,16 @@ function App() {
 
   const [routeCost, setRouteCost] =
     useState(0);
+
+  // =====================================================
+  // ADAPTIVE ROUTING ANALYSIS
+  // =====================================================
+
+  const [adaptiveAnalysis, setAdaptiveAnalysis] =
+    useState([]);
+
+  const [adaptiveRoute, setAdaptiveRoute] =
+    useState([]);
 
   // =====================================================
   // PACKET SIMULATION
@@ -1628,6 +1903,163 @@ function App() {
   };
 
   // =====================================================
+  // ADAPTIVE ROUTE ANALYSIS
+  // =====================================================
+
+  const getActiveLinkBetween = (firstRouter, secondRouter) => {
+
+    return network.links.find(
+      (link) =>
+        link.active &&
+        ((link.source === firstRouter &&
+          link.destination === secondRouter) ||
+          (link.source === secondRouter &&
+            link.destination === firstRouter))
+    ) || null;
+  };
+
+  const enumerateCandidateRoutes = (
+    startRouter,
+    targetRouter
+  ) => {
+
+    const activeRouterIds = new Set(
+      network.routers
+        .filter((router) => router.active)
+        .map((router) => router.id)
+    );
+
+    if (
+      !activeRouterIds.has(startRouter) ||
+      !activeRouterIds.has(targetRouter)
+    ) {
+      return [];
+    }
+
+    const adjacency = {};
+
+    activeRouterIds.forEach((routerId) => {
+      adjacency[routerId] = [];
+    });
+
+    network.links.forEach((link) => {
+      if (!link.active) {
+        return;
+      }
+
+      if (
+        activeRouterIds.has(link.source) &&
+        activeRouterIds.has(link.destination)
+      ) {
+        adjacency[link.source].push(link.destination);
+        adjacency[link.destination].push(link.source);
+      }
+    });
+
+    Object.values(adjacency).forEach((neighbors) => {
+      neighbors.sort((a, b) => a.localeCompare(b));
+    });
+
+    const candidates = [];
+    const maximumRoutes = 60;
+    const maximumDepth = activeRouterIds.size;
+
+    const dfs = (currentRouter, path, visited) => {
+
+      if (candidates.length >= maximumRoutes) {
+        return;
+      }
+
+      if (currentRouter === targetRouter) {
+        candidates.push(path.slice());
+        return;
+      }
+
+      if (path.length >= maximumDepth) {
+        return;
+      }
+
+      for (const neighbour of adjacency[currentRouter] || []) {
+
+        if (visited.has(neighbour)) {
+          continue;
+        }
+
+        visited.add(neighbour);
+        path.push(neighbour);
+
+        dfs(neighbour, path, visited);
+
+        path.pop();
+        visited.delete(neighbour);
+
+        if (candidates.length >= maximumRoutes) {
+          return;
+        }
+      }
+    };
+
+    dfs(
+      startRouter,
+      [startRouter],
+      new Set([startRouter])
+    );
+
+    return candidates;
+  };
+
+  const getAdaptiveRouteAnalysis = (
+    startRouter,
+    targetRouter
+  ) => {
+    return getAdaptiveRouteAnalysisForNetwork(
+      network,
+      startRouter,
+      targetRouter,
+      healthTick
+    );
+  };
+
+  const getAdaptiveReason = (
+    bestRoute,
+    analysis
+  ) => {
+
+    if (!bestRoute) {
+      return "No healthy candidate route is currently available.";
+    }
+
+    const lowestCostRoute =
+      analysis.reduce((best, current) =>
+        !best || current.cost < best.cost
+          ? current
+          : best,
+      null);
+
+    if (
+      lowestCostRoute &&
+      lowestCostRoute.path.join("→") !==
+        bestRoute.path.join("→")
+    ) {
+      return "Selected for better network health and lower estimated risk than the lowest-cost alternative.";
+    }
+
+    if (bestRoute.health >= 85) {
+      return "Selected because the path has strong overall link health.";
+    }
+
+    if (bestRoute.congestion <= 35) {
+      return "Selected because the path has relatively low congestion.";
+    }
+
+    if (bestRoute.packetLoss <= 1) {
+      return "Selected because the path has low packet loss.";
+    }
+
+    return "Selected using Resilio's combined cost and network-health score.";
+  };
+
+  // =====================================================
   // FIND ROUTE
   // =====================================================
 
@@ -1686,31 +2118,96 @@ function App() {
         data.available
       ) {
 
-        setRoute(
-          data.path
-        );
+        const analysis =
+          getAdaptiveRouteAnalysis(
+            source,
+            destination
+          );
 
-        setRouteCost(
-          data.cost
-        );
+        if (analysis.length > 0) {
 
-        setMessage(
-          `Route found: ${data.path.join(
-            " → "
-          )}`
-        );
+          const bestRoute =
+            analysis[0];
 
-        appendNetworkEvent(
-          setNetworkEvents,
-          "ROUTE",
-          `Route discovered: ${data.path.join(" → ")} (cost ${data.cost}).`
-        );
+          setAdaptiveAnalysis(
+            analysis
+          );
+
+          setAdaptiveRoute(
+            bestRoute.path
+          );
+
+          setRoute(
+            bestRoute.path
+          );
+
+          setRouteCost(
+            bestRoute.cost
+          );
+
+          const reason =
+            getAdaptiveReason(
+              bestRoute,
+              analysis
+            );
+
+          setMessage(
+            `Adaptive route selected: ${bestRoute.path.join(
+              " → "
+            )} (score ${bestRoute.score}/100).`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "ROUTE",
+            `Adaptive route selected: ${bestRoute.path.join(" → ")} (cost ${bestRoute.cost}, health ${bestRoute.health}/100, score ${bestRoute.score}/100).`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "SYSTEM",
+            `Reason: ${reason}`
+          );
+
+        } else {
+
+          setAdaptiveAnalysis(
+            []
+          );
+
+          setAdaptiveRoute(
+            data.path
+          );
+
+          setRoute(
+            data.path
+          );
+
+          setRouteCost(
+            data.cost
+          );
+
+          setMessage(
+            `Route found: ${data.path.join(
+              " → "
+            )}`
+          );
+
+          appendNetworkEvent(
+            setNetworkEvents,
+            "ROUTE",
+            `Route discovered: ${data.path.join(" → ")} (cost ${data.cost}).`
+          );
+        }
 
       } else {
 
         setRoute([]);
 
         setRouteCost(0);
+
+        setAdaptiveAnalysis([]);
+        setAdaptiveRoute([]);
 
         setMessage(
           `No route available from ${source} to ${destination}.`
@@ -1948,7 +2445,10 @@ function App() {
     }
 
     const nextPacketId = packetId + 1;
-    const demoRoute = route.slice();
+    const demoRoute =
+      adaptiveRoute.length >= 3
+        ? adaptiveRoute.slice()
+        : route.slice();
 
     setPacketId(nextPacketId);
     setPacketRoute(demoRoute);
@@ -1965,7 +2465,7 @@ function App() {
     setMessage(
       `Self-healing demo started: ${demoRoute.join(
         " → "
-      )}. Resilio will dynamically select a recoverable link failure.`
+      )}. Resilio will dynamically select a recoverable failure and use health-aware adaptive routing during recovery.`
     );
 
     appendNetworkEvent(
@@ -2274,39 +2774,73 @@ function App() {
             );
           }
 
-          const recoveredRoute = routeData.path;
+          const recoveredAnalysis =
+            getAdaptiveRouteAnalysisForNetwork(
+              networkData,
+              currentRouter,
+              destination,
+              healthTick
+            );
 
-          setRoute(recoveredRoute);
-          setRouteCost(routeData.cost);
-          setPacketRoute(recoveredRoute);
+          const adaptiveRecoveredRoute =
+            recoveredAnalysis[0]?.path || routeData.path;
+
+          const adaptiveRecoveredCost =
+            recoveredAnalysis[0]?.cost ?? routeData.cost;
+
+          const adaptiveRecoveredScore =
+            recoveredAnalysis[0]?.score ?? null;
+
+          const adaptiveRecoveredHealth =
+            recoveredAnalysis[0]?.health ?? null;
+
+          setAdaptiveAnalysis(recoveredAnalysis);
+          setAdaptiveRoute(adaptiveRecoveredRoute);
+          setRoute(adaptiveRecoveredRoute);
+          setRouteCost(adaptiveRecoveredCost);
+          setPacketRoute(adaptiveRecoveredRoute);
           setPacketStep(0);
           setPacketProgress(0);
           setHealingInProgress(false);
           setRecoveryCount((count) => count + 1);
           setHealingMessage(
-            `Alternate route found: ${recoveredRoute.join(
-              " → "
-            )}`
+            recoveredAnalysis[0]
+              ? `Health-aware recovery selected: ${adaptiveRecoveredRoute.join(
+                  " → "
+                )}`
+              : `Alternate route found: ${adaptiveRecoveredRoute.join(
+                  " → "
+                )}`
           );
           setPacketStatus("TRANSMITTING");
           setPacketActive(true);
 
           setMessage(
-            `✓ Failure detected. Alternate route found: ${recoveredRoute.join(
-              " → "
-            )}. Packet ${packetNumber} is continuing.`
+            recoveredAnalysis[0]
+              ? `✓ Failure detected. Resilio selected ${adaptiveRecoveredRoute.join(
+                  " → "
+                )} using health-aware scoring (score ${adaptiveRecoveredScore}/100). Packet ${packetNumber} is continuing.`
+              : `✓ Failure detected. Alternate route found: ${adaptiveRecoveredRoute.join(
+                  " → "
+                )}. Packet ${packetNumber} is continuing.`
           );
 
           appendNetworkEvent(
             setNetworkEvents,
             "ROUTE",
-            `Alternate route found: ${recoveredRoute.join(" → ")} (cost ${routeData.cost}).`
+            recoveredAnalysis[0]
+              ? `Adaptive recovery route selected: ${adaptiveRecoveredRoute.join(
+                  " → "
+                )} (cost ${adaptiveRecoveredCost}, health ${adaptiveRecoveredHealth}/100, score ${adaptiveRecoveredScore}/100).`
+              : `Alternate route found: ${adaptiveRecoveredRoute.join(
+                  " → "
+                )} (cost ${adaptiveRecoveredCost}).`
           );
 
           appendNetworkEvent(
             setNetworkEvents,
             "HEALING",
-            `Packet ${packetNumber} rerouted successfully. Continuing transmission.`
+            `Packet ${packetNumber} rerouted successfully using Resilio's health-aware recovery decision.`
           );
 
         } catch (error) {
@@ -2436,6 +2970,10 @@ function App() {
 
       setRouteCost(0);
 
+      setAdaptiveAnalysis([]);
+
+      setAdaptiveRoute([]);
+
       setPacketActive(false);
 
       setPacketStep(0);
@@ -2523,7 +3061,7 @@ function App() {
           </h1>
 
           <p>
-            Intelligent Self-Healing Network Simulator
+            Intelligent Network Fault Analysis & Adaptive Recovery System
           </p>
 
         </div>
@@ -3403,6 +3941,109 @@ function App() {
             </div>
 
           </div>
+
+          {adaptiveAnalysis.length > 0 && (
+
+            <div className="adaptive-route-panel">
+
+              <div className="adaptive-route-header">
+
+                <div>
+                  <h3>Adaptive Route Analysis</h3>
+                  <p>
+                    Resilio evaluates route cost and live simulated network health.
+                  </p>
+                </div>
+
+                <span className="adaptive-badge">
+                  HEALTH-AWARE
+                </span>
+
+              </div>
+
+              <div className="adaptive-route-summary">
+
+                <div className="adaptive-recommended-card">
+                  <span>Recommended Route</span>
+                  <strong>
+                    {adaptiveRoute.length > 0
+                      ? adaptiveRoute.join(" → ")
+                      : "—"}
+                  </strong>
+                  <small>
+                    {adaptiveAnalysis[0]?.score ?? 0}/100 route score •{" "}
+                    {adaptiveAnalysis[0]?.risk ?? "—"} risk
+                  </small>
+                </div>
+
+                <div className="adaptive-reason-card">
+                  <span>Why Resilio selected it</span>
+                  <strong>
+                    {getAdaptiveReason(
+                      adaptiveAnalysis[0],
+                      adaptiveAnalysis
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+              <div className="adaptive-route-list">
+
+                {adaptiveAnalysis.slice(0, 6).map((candidate, index) => (
+
+                  <div
+                    className={`adaptive-route-row ${
+                      index === 0
+                        ? "adaptive-route-row-best"
+                        : ""
+                    }`}
+                    key={`adaptive-${candidate.path.join("-")}`}
+                  >
+
+                    <div className="adaptive-route-main">
+                      <div className="adaptive-route-title">
+                        <strong>
+                          {candidate.path.join(" → ")}
+                        </strong>
+                        {index === 0 && (
+                          <span className="adaptive-best-pill">
+                            RECOMMENDED
+                          </span>
+                        )}
+                      </div>
+                      <span>
+                        Cost {candidate.cost} • Health {candidate.health}/100 • Risk {candidate.risk}
+                      </span>
+                    </div>
+
+                    <div className="adaptive-route-metrics">
+                      <span>
+                        Latency
+                        <strong>{candidate.latency} ms</strong>
+                      </span>
+                      <span>
+                        Loss
+                        <strong>{candidate.packetLoss}%</strong>
+                      </span>
+                      <span>
+                        Congestion
+                        <strong>{candidate.congestion}%</strong>
+                      </span>
+                      <span>
+                        Score
+                        <strong>{candidate.score}/100</strong>
+                      </span>
+                    </div>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            </div>
+          )}
 
           <div className="reset-area">
 
