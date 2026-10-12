@@ -3,7 +3,7 @@ package com.netheal.api;
 import com.netheal.graph.NetworkGraph;
 import com.netheal.model.Link;
 import com.netheal.model.Router;
-import com.netheal.routing.DijkstraRouter;
+import com.netheal.routing.AStarRouter;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -82,10 +82,16 @@ public class NetHealApiServer {
                 NetHealApiServer::handleAddLink
         );
 
+        // Update the cost/weight of an existing link
+        server.createContext(
+                "/api/link/update-cost",
+                NetHealApiServer::handleUpdateLinkCost
+        );
+
         server.setExecutor(null);
 
         System.out.println("=================================");
-        System.out.println("       NETHEAL API SERVER");
+        System.out.println("       RESILIO API SERVER");
         System.out.println("=================================");
         System.out.println(
                 "Server running at:"
@@ -259,7 +265,7 @@ public class NetHealApiServer {
         }
 
         List<String> path =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -270,7 +276,7 @@ public class NetHealApiServer {
         if (!path.isEmpty()) {
 
             cost =
-                    DijkstraRouter.calculatePathCost(
+                    AStarRouter.calculatePathCost(
                             network,
                             path
                     );
@@ -501,7 +507,7 @@ public class NetHealApiServer {
                 System.nanoTime();
 
         List<String> route =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -518,7 +524,7 @@ public class NetHealApiServer {
         if (!route.isEmpty()) {
 
             cost =
-                    DijkstraRouter.calculatePathCost(
+                    AStarRouter.calculatePathCost(
                             network,
                             route
                     );
@@ -820,6 +826,83 @@ public class NetHealApiServer {
                 200,
                 json
         );
+    }
+
+    // =========================================================
+    // UPDATE EXISTING LINK COST
+    // =========================================================
+
+    private static void handleUpdateLinkCost(
+            HttpExchange exchange) throws IOException {
+
+        addCorsHeaders(exchange);
+
+        if ("OPTIONS".equalsIgnoreCase(
+                exchange.getRequestMethod())) {
+            sendResponse(exchange, 204, "");
+            return;
+        }
+
+        Map<String, String> params =
+                getQueryParameters(exchange.getRequestURI());
+
+        String source = params.get("source");
+        String destination = params.get("destination");
+        String costText = params.get("cost");
+
+        if (source == null || source.isBlank()
+                || destination == null || destination.isBlank()
+                || costText == null || costText.isBlank()) {
+            sendResponse(
+                    exchange,
+                    400,
+                    "{\"error\":\"source, destination and cost are required\"}"
+            );
+            return;
+        }
+
+        Link link = network.getLink(source, destination);
+        if (link == null) {
+            sendResponse(
+                    exchange,
+                    404,
+                    "{\"error\":\"Link not found\"}"
+            );
+            return;
+        }
+
+        final int cost;
+        try {
+            cost = Integer.parseInt(costText);
+        } catch (NumberFormatException e) {
+            sendResponse(
+                    exchange,
+                    400,
+                    "{\"error\":\"Cost must be a valid integer\"}"
+            );
+            return;
+        }
+
+        if (cost <= 0) {
+            sendResponse(
+                    exchange,
+                    400,
+                    "{\"error\":\"Cost must be greater than zero\"}"
+            );
+            return;
+        }
+
+        int previousCost = link.getCost();
+        link.setCost(cost);
+
+        String json = "{"
+                + "\"success\":true,"
+                + "\"message\":\"Link cost updated\","
+                + "\"previousCost\":" + previousCost + ","
+                + "\"cost\":" + cost
+                + "}";
+
+        sendResponse(exchange, 200, json);
     }
 
     // =========================================================

@@ -1550,3 +1550,1059 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+/* ==========================================
+   RESILIO — FAULT DIAGNOSIS & SEVERITY
+========================================== */
+
+.fault-status-pill,
+.fault-severity {
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.fault-critical {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.fault-high {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+.fault-healthy {
+  color: #047857;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+.fault-list {
+  display: grid;
+  gap: 14px;
+}
+
+.fault-card {
+  border: 1px solid #334155;
+  border-left: 4px solid #64748b;
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: #0f172a;
+}
+
+.fault-card.fault-critical {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.22), rgba(15, 23, 42, 0.92));
+}
+
+.fault-card.fault-high {
+  border-left-color: #f97316;
+  background: linear-gradient(135deg, rgba(124, 45, 18, 0.18), rgba(15, 23, 42, 0.92));
+}
+
+.fault-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.fault-type {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.fault-card h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.fault-card-header p {
+  margin: 6px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.fault-detail-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr 1fr;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.fault-detail-grid > div {
+  padding: 14px;
+  border: 1px solid #26364d;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.fault-detail-grid > div > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fault-detail-grid p {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.fault-detail-grid ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fault-healthy-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 14px;
+  background: rgba(6, 78, 59, 0.22);
+}
+
+.fault-healthy-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #052e16;
+  background: #4ade80;
+  font-weight: 900;
+}
+
+.fault-healthy-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #bbf7d0;
+  font-size: 15px;
+}
+
+.fault-healthy-card span {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.fault-diagnosis-note {
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .fault-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .fault-card-header {
+    flex-direction: column;
+  }
+}
+
+/* ==========================================
+   RESILIO — FAILURE RISK ASSESSMENT
+========================================== */
+
+.risk-assessment-panel {
+  position: relative;
+}
+
+.risk-status-pill {
+  min-width: 120px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  border: 1px solid currentColor;
+}
+
+.risk-low {
+  color: #22c55e;
+}
+
+.risk-medium {
+  color: #facc15;
+}
+
+.risk-high {
+  color: #f59e0b;
+}
+
+.risk-critical {
+  color: #ef4444;
+}
+
+.risk-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.risk-summary-card {
+  padding: 18px 20px;
+  border: 1px solid #27364f;
+  border-radius: 14px;
+  background: #0b1323;
+}
+
+.risk-summary-card span {
+  display: block;
+  margin-bottom: 7px;
+  color: #93b4db;
+  font-size: 13px;
+}
+
+.risk-summary-card strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 27px;
+  line-height: 1.1;
+}
+
+.risk-list {
+  display: grid;
+  gap: 14px;
+}
+
+.risk-card {
+  padding: 20px;
+  border: 1px solid #2a3852;
+  border-left: 4px solid currentColor;
+  border-radius: 14px;
+  background: #101a2d;
+}
+
+.risk-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.risk-component-label {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: #7da7d4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.risk-card h3 {
+  margin: 0 0 6px;
+  color: #f8fafc;
+  font-size: 20px;
+}
+
+.risk-card p {
+  margin: 0;
+  color: #b7cae5;
+  line-height: 1.55;
+}
+
+.risk-score-badge {
+  min-width: 118px;
+  padding: 12px 14px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.risk-score-badge strong {
+  color: #f8fafc;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.risk-score-badge span {
+  color: #9fb7d5;
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.risk-score-badge em {
+  display: block;
+  margin-top: 6px;
+  color: currentColor;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.risk-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.risk-metric-grid > div {
+  padding: 12px 14px;
+  border: 1px solid #25334b;
+  border-radius: 10px;
+  background: #0b1323;
+}
+
+.risk-metric-grid span {
+  display: block;
+  color: #83a6d1;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.risk-metric-grid strong {
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.risk-recommendation {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: rgba(79, 70, 229, 0.09);
+  border: 1px solid #2c3b59;
+}
+
+.risk-recommendation span {
+  display: block;
+  margin-bottom: 4px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.risk-recommendation p {
+  color: #e2e8f0;
+}
+
+.risk-empty-card {
+  padding: 22px;
+  border: 1px dashed #33445f;
+  border-radius: 12px;
+  color: #94a9c7;
+  text-align: center;
+}
+
+.risk-assessment-note {
+  margin-top: 14px;
+  color: #6f90ba;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .risk-summary-grid,
+  .risk-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .risk-card-top {
+    flex-direction: column;
+  }
+
+  .risk-score-badge {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .risk-summary-grid,
+  .risk-metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   RESILIO — PROACTIVE RECOVERY
+   Append this patch to the bottom of frontend/src/App.css.
+========================================================= */
+
+.proactive-recovery-panel {
+  border-color: rgba(56, 189, 248, 0.28);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(37, 99, 235, 0.08), transparent 34%),
+    var(--panel-bg, #111827);
+}
+
+.proactive-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.proactive-status-idle {
+  color: #93c5fd;
+  background: rgba(30, 64, 175, 0.18);
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.proactive-status-ready {
+  color: #6ee7b7;
+  background: rgba(6, 95, 70, 0.2);
+  border-color: rgba(52, 211, 153, 0.42);
+}
+
+.proactive-status-applied {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.2);
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.proactive-status-blocked {
+  color: #fcd34d;
+  background: rgba(146, 64, 14, 0.2);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.proactive-intro {
+  margin: 0 0 16px;
+  color: #a9c3e4;
+  font-size: 13px;
+  line-height: 1.65;
+  max-width: 1000px;
+}
+
+.proactive-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.proactive-plan-card {
+  min-width: 0;
+  border: 1px solid #27364e;
+  border-radius: 14px;
+  padding: 17px;
+  background: rgba(8, 17, 34, 0.66);
+}
+
+.proactive-current-card {
+  border-top: 3px solid #f59e0b;
+}
+
+.proactive-alternative-card {
+  border-top: 3px solid #22c55e;
+}
+
+.proactive-eyebrow {
+  display: block;
+  color: #8ab7ed;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+
+.proactive-plan-card h3 {
+  color: #f8fafc;
+  font-size: clamp(17px, 2vw, 22px);
+  line-height: 1.35;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+
+.proactive-route-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  color: #9db5d4;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.proactive-route-metrics strong {
+  color: #f8fafc;
+  margin-left: 4px;
+}
+
+.proactive-risk-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #2b3a52;
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.proactive-risk-link > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.proactive-risk-link > div span,
+.proactive-telemetry-grid span {
+  color: #93b5df;
+  font-size: 11px;
+}
+
+.proactive-risk-link > div strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.proactive-risk-tag {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.proactive-risk-tag.risk-low {
+  color: #86efac;
+  background: rgba(22, 163, 74, 0.16);
+}
+
+.proactive-risk-tag.risk-medium {
+  color: #fde047;
+  background: rgba(202, 138, 4, 0.16);
+}
+
+.proactive-risk-tag.risk-high {
+  color: #fdba74;
+  background: rgba(234, 88, 12, 0.18);
+}
+
+.proactive-risk-tag.risk-critical {
+  color: #fca5a5;
+  background: rgba(220, 38, 38, 0.18);
+}
+
+.proactive-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.proactive-telemetry-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  min-width: 0;
+  border: 1px solid #27364e;
+  border-radius: 9px;
+  background: rgba(17, 29, 49, 0.85);
+}
+
+.proactive-telemetry-grid strong {
+  color: #f8fafc;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.proactive-empty-state {
+  border: 1px dashed #344b6b;
+  border-radius: 12px;
+  padding: 17px;
+  color: #aec6e5;
+  background: rgba(8, 17, 34, 0.55);
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.proactive-result-message {
+  margin-top: 13px;
+  padding: 12px 14px;
+  border-left: 3px solid #22c55e;
+  border-radius: 8px;
+  color: #dbeafe;
+  background: rgba(30, 64, 175, 0.14);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.proactive-result-warning {
+  border-left-color: #f59e0b;
+  background: rgba(146, 64, 14, 0.15);
+}
+
+.proactive-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.proactive-analyze-button {
+  background: #2563eb;
+}
+
+.proactive-apply-button {
+  background: #059669;
+}
+
+.proactive-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: saturate(0.65);
+}
+
+.proactive-note {
+  margin-top: 13px;
+  color: #7fa3d2;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 850px) {
+  .proactive-plan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .proactive-status-pill {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .proactive-risk-link {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .proactive-telemetry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proactive-actions {
+    justify-content: stretch;
+  }
+
+  .proactive-actions button {
+    width: 100%;
+  }
+}
+
+/* Resilio Performance Analysis panel */
+.performance-analysis-panel {
+  border-color: #2b3d5b;
+}
+
+.performance-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  border: 1px solid #344766;
+  background: #0b1425;
+  color: #aabbd4;
+}
+
+.performance-status-idle {
+  color: #aabbd4;
+}
+
+.performance-status-proposed {
+  color: #93c5fd;
+  border-color: #315c93;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.performance-status-applied {
+  color: #fcd34d;
+  border-color: #8b6b24;
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.performance-status-verified {
+  color: #4ade80;
+  border-color: #167c48;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.performance-empty-state {
+  border: 1px dashed #344766;
+  background: #0b1424;
+  color: #a8bddb;
+  border-radius: 12px;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+.performance-empty-state strong {
+  color: #eff6ff;
+}
+
+.performance-route-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.performance-route-summary {
+  min-width: 0;
+  background: #0b1425;
+  border: 1px solid #293a58;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.performance-route-before {
+  border-left: 3px solid #64748b;
+}
+
+.performance-route-after {
+  border-left: 3px solid #22c55e;
+}
+
+.performance-eyebrow {
+  display: block;
+  color: #93c5fd;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.performance-route-summary h3 {
+  color: #f8fafc;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.performance-route-summary p {
+  color: #a9bfdc;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.performance-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #263751;
+  border-radius: 12px;
+  margin-top: 14px;
+}
+
+.performance-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+  background: #0c1526;
+  color: #e5edf8;
+  font-size: 13px;
+}
+
+.performance-comparison-table th,
+.performance-comparison-table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid #22314a;
+}
+
+.performance-comparison-table th {
+  color: #9dc9ff;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 800;
+  background: #111d31;
+}
+
+.performance-comparison-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.performance-comparison-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.performance-improved {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.performance-degraded {
+  color: #fca5a5;
+  font-weight: 700;
+}
+
+.performance-neutral {
+  color: #cbd5e1;
+}
+
+.performance-delivery-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 16px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid #2b3d5b;
+  border-radius: 12px;
+}
+
+.performance-delivery-result > div {
+  min-width: 0;
+}
+
+.performance-delivery-result strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.performance-delivery-result p {
+  color: #afc1db;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.performance-delivery-success {
+  border-color: #187849;
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.performance-delivery-badge {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #17263b;
+  border: 1px solid #344766;
+  color: #cfe1fa;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.performance-delivery-success .performance-delivery-badge {
+  color: #4ade80;
+  border-color: #167c48;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.performance-note {
+  margin-top: 14px;
+  color: #7896bd;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .performance-route-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-delivery-result {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .performance-status-pill {
+    margin-top: 8px;
+  }
+}
+
+/* ==========================================
+   INLINE LINK COST EDITOR (RESILIO)
+   ========================================== */
+
+.link-list .cost-edit-item {
+  grid-template-columns:
+    minmax(100px, 0.85fr)
+    minmax(135px, 0.95fr)
+    minmax(85px, 0.55fr)
+    minmax(220px, 1.35fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.cost-edit-connection {
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.cost-edit-current {
+  color: #cbd5e1;
+}
+
+.cost-edit-current strong {
+  color: #93c5fd;
+  font-size: 16px;
+}
+
+.cost-edit-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cost-edit-controls input {
+  width: 92px;
+  min-width: 70px;
+  padding: 10px 11px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  outline: none;
+  background: #0b1020;
+  color: #f8fafc;
+  font: inherit;
+}
+
+.cost-edit-controls input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.15);
+}
+
+.cost-edit-button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #0d9488;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.cost-edit-button:hover:not(:disabled) {
+  background: #0f766e;
+}
+
+.cost-edit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1000px) {
+  .link-list .cost-edit-item {
+    grid-template-columns: minmax(100px, 1fr) minmax(120px, 1fr);
+  }
+
+  .cost-edit-controls {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 650px) {
+  .link-list .cost-edit-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .cost-edit-controls {
+    grid-column: auto;
+    width: 100%;
+  }
+
+  .cost-edit-controls input {
+    flex: 1;
+    width: 0;
+  }
+
+  .link-list .cost-edit-item .link-active,
+  .link-list .cost-edit-item .link-failed {
+    text-align: left;
+  }
+}
+
+
+
+/* ==========================================
+   RESILIO BRANDING
+   ========================================== */
+
+.brand-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.brand-logo {
+  display: block;
+  height: 52px;
+  width: auto;
+  max-width: min(420px, 60vw);
+  object-fit: contain;
+  object-position: left center;
+  user-select: none;
+}
+
+.brand-lockup p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+@media (max-width: 650px) {
+  .brand-logo {
+    height: 46px;
+    max-width: min(320px, 86vw);
+  }
+
+  .brand-lockup p {
+    font-size: 12px;
+    max-width: 86vw;
+  }
+}

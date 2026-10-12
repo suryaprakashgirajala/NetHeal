@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="#0f172a" stroke="#243047" stroke-width="1.5"/>
+  <path d="M32 8 L51 16 V29 C51 42 43 51 32 57 C21 51 13 42 13 29 V16 Z" fill="#111d35" stroke="url(#shield)" stroke-width="3" stroke-linejoin="round"/>
+  <g stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" opacity=".95">
+    <path d="M23 25 L34 19 L42 31 L30 41 L23 25 M23 25 L42 31 M34 19 L30 41" fill="none"/>
+  </g>
+  <circle cx="23" cy="25" r="4.2" fill="#22d3ee" stroke="#e0f2fe" stroke-width="1.1"/>
+  <circle cx="34" cy="19" r="4.2" fill="#38bdf8" stroke="#e0f2fe" stroke-width="1.1"/>
+  <circle cx="42" cy="31" r="4.2" fill="#2dd4bf" stroke="#ccfbf1" stroke-width="1.1"/>
+  <circle cx="30" cy="41" r="4.2" fill="#38bdf8" stroke="#e0f2fe" stroke-width="1.1"/>
+</svg>

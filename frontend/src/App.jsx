@@ -878,10 +878,30 @@ function App() {
   const [healthTick, setHealthTick] =
     useState(0);
 
+  // Proactive recovery plan: proposes a healthier route before
+  // intentionally injecting any failure into the simulated network.
+  const [proactivePlan, setProactivePlan] =
+    useState(null);
+
+  // Stores a before/after comparison for proactive route changes.
+  // All values are based on the simulator's synthetic telemetry.
+  const [performanceComparison, setPerformanceComparison] =
+    useState(null);
+
   // Prevent the self-healing demo from injecting more than one
   // automatic failure during a single packet transmission. The actual
   // failed link is selected dynamically from the live topology.
   const selfHealFailureInjected = useRef(false);
+
+  // Keep a handle to the React Flow instance so the topology can be
+  // reframed after a simulated failure/recovery changes active links.
+  // Without this, the viewport can remain on a stale transform and the
+  // router nodes may appear to disappear until the page is refreshed.
+  const reactFlowInstanceRef = useRef(null);
+
+  // Changing this value remounts React Flow after a successful network reset.
+  // It helps recover from occasional stale viewport/canvas state after reset.
+  const [topologyGeneration, setTopologyGeneration] = useState(0);
 
   // =====================================================
   // SYSTEM STATE
@@ -914,6 +934,10 @@ function App() {
 
   const [linkCost, setLinkCost] =
     useState("1");
+
+  // Stores unsaved cost edits for each existing connection.
+  const [linkCostDrafts, setLinkCostDrafts] =
+    useState({});
 
   // =====================================================
   // FAILURE CONTROL
@@ -1278,6 +1302,40 @@ function App() {
       destination,
     ]);
 
+  // Refit the topology after the network snapshot changes. Two animation
+  // frames give React Flow time to commit the new nodes and measure its canvas.
+  // This is independent of packet animation state, so it does not run every frame.
+  useEffect(() => {
+    if (layoutedNodes.length === 0) {
+      return;
+    }
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const instance = reactFlowInstanceRef.current;
+        if (instance) {
+          instance.fitView({
+            padding: 0.18,
+            duration: 220,
+          });
+        }
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [
+    network.routers,
+    network.links,
+    layoutedNodes.length,
+    topologyGeneration,
+  ]);
+
   // =====================================================
   // PACKET FLOW POSITION
   // Keep packet separate from React Flow nodes so fitView
@@ -1570,6 +1628,390 @@ function App() {
     network,
     healthTick,
   ]);
+
+  // =====================================================
+  // FAULT DIAGNOSIS & SEVERITY
+  // =====================================================
+
+  // Resilio uses transparent rule-based analysis here. The goal is to
+  // explain what is wrong, how serious it is, what traffic is affected,
+  // and what recovery action is recommended. This is intentionally
+  // separate from route selection so diagnosis remains explainable.
+  const faultDiagnosis = useMemo(() => {
+
+    const failedRouters = network.routers.filter(
+      (router) => !router.active
+    );
+
+    const failedLinks = network.links.filter(
+      (link) => !link.active
+    );
+
+    const degradedLinks = network.links.filter((link) => {
+      if (!link.active) {
+        return false;
+      }
+
+      const telemetry =
+        healthData.linkTelemetry[
+          `${link.source}-${link.destination}`
+        ];
+
+      return telemetry && telemetry.health < 65;
+    });
+
+    const hasSelectedRoute = route.length > 1;
+
+    const selectedRouteUsesLink = (sourceId, destinationId) => {
+      for (let index = 0; index < route.length - 1; index += 1) {
+        const first = route[index];
+        const second = route[index + 1];
+
+        if (
+          (first === sourceId && second === destinationId) ||
+          (first === destinationId && second === sourceId)
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    const isReachable = (startRouter, targetRouter) => {
+      if (!startRouter || !targetRouter) {
+        return false;
+      }
+
+      const activeRouterIds = new Set(
+        network.routers
+          .filter((router) => router.active)
+          .map((router) => router.id)
+      );
+
+      if (
+        !activeRouterIds.has(startRouter) ||
+        !activeRouterIds.has(targetRouter)
+      ) {
+        return false;
+      }
+
+      const queue = [startRouter];
+      const visited = new Set([startRouter]);
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+
+        if (current === targetRouter) {
+          return true;
+        }
+
+        network.links.forEach((link) => {
+          if (!link.active) {
+            return;
+          }
+
+          let neighbour = null;
+
+          if (link.source === current) {
+            neighbour = link.destination;
+          } else if (link.destination === current) {
+            neighbour = link.source;
+          }
+
+          if (
+            neighbour &&
+            activeRouterIds.has(neighbour) &&
+            !visited.has(neighbour)
+          ) {
+            visited.add(neighbour);
+            queue.push(neighbour);
+          }
+        });
+      }
+
+      return false;
+    };
+
+    const faults = [];
+
+    failedLinks.forEach((link) => {
+      const routeImpacted = selectedRouteUsesLink(
+        link.source,
+        link.destination
+      );
+
+      const selectedPathStillReachable = isReachable(
+        source,
+        destination
+      );
+
+      faults.push({
+        id: `link-${link.source}-${link.destination}`,
+        component: `Link ${link.source} ↔ ${link.destination}`,
+        type: 'LINK FAILURE',
+        severity: 'CRITICAL',
+        severityClass: 'fault-critical',
+        summary: `The ${link.source} ↔ ${link.destination} connection is unavailable.`,
+        indicators: [
+          'Link status: DOWN',
+          'Packet loss: 100%',
+          'Health score: 0/100',
+        ],
+        impact: routeImpacted
+          ? 'The selected route is directly disrupted by this failure.'
+          : selectedPathStillReachable
+          ? 'The selected connection is unavailable, but the source and destination remain reachable.'
+          : 'The current network has no active path between the selected source and destination.',
+        recommendation: selectedPathStillReachable
+          ? 'Use a healthy alternate path and continue monitoring the network.'
+          : 'Restore this link or add network redundancy before transmitting traffic.',
+      });
+    });
+
+    failedRouters.forEach((router) => {
+      const sourceAffected = router.id === source;
+      const destinationAffected = router.id === destination;
+
+      faults.push({
+        id: `router-${router.id}`,
+        component: `Router ${router.id}`,
+        type: 'ROUTER FAILURE',
+        severity: 'CRITICAL',
+        severityClass: 'fault-critical',
+        summary: `Router ${router.id} is unavailable and cannot forward traffic.`,
+        indicators: [
+          'Router status: DOWN',
+          'Forwarding unavailable',
+          sourceAffected
+            ? 'Selected source is affected'
+            : destinationAffected
+            ? 'Selected destination is affected'
+            : 'Network segment may be isolated',
+        ],
+        impact:
+          sourceAffected || destinationAffected
+            ? `The selected ${sourceAffected ? 'source' : 'destination'} router is directly affected.`
+            : 'Traffic that depends on this router may need to be rerouted.',
+        recommendation: 'Use a healthy router path or restore the failed router before normal traffic resumes.',
+      });
+    });
+
+    degradedLinks.forEach((link) => {
+      const telemetry =
+        healthData.linkTelemetry[
+          `${link.source}-${link.destination}`
+        ];
+
+      faults.push({
+        id: `degraded-${link.source}-${link.destination}`,
+        component: `Link ${link.source} ↔ ${link.destination}`,
+        type: 'LINK DEGRADATION',
+        severity: 'HIGH',
+        severityClass: 'fault-high',
+        summary: `The connection is showing unhealthy operating conditions.`,
+        indicators: [
+          `Health score: ${telemetry.health}/100`,
+          `Congestion: ${telemetry.congestion}%`,
+          `Packet loss: ${telemetry.packetLoss}%`,
+        ],
+        impact: hasSelectedRoute && selectedRouteUsesLink(link.source, link.destination)
+          ? 'This degraded link is part of the selected route and may reduce reliability.'
+          : 'This link can become a future bottleneck if its condition worsens.',
+        recommendation: 'Prefer a healthier route when available and continue monitoring this link.',
+      });
+    });
+
+    const severityOrder = {
+      CRITICAL: 0,
+      HIGH: 1,
+    };
+
+    faults.sort((first, second) => {
+      const firstRank = severityOrder[first.severity] ?? 9;
+      const secondRank = severityOrder[second.severity] ?? 9;
+
+      if (firstRank !== secondRank) {
+        return firstRank - secondRank;
+      }
+
+      return first.component.localeCompare(second.component);
+    });
+
+    return {
+      faults: faults.slice(0, 8),
+      failedCount: failedRouters.length + failedLinks.length,
+      degradedCount: degradedLinks.length,
+      overallStatus:
+        failedRouters.length + failedLinks.length > 0
+          ? 'FAULTS DETECTED'
+          : degradedLinks.length > 0
+          ? 'ATTENTION REQUIRED'
+          : 'SYSTEM HEALTHY',
+      overallClass:
+        failedRouters.length + failedLinks.length > 0
+          ? 'fault-critical'
+          : degradedLinks.length > 0
+          ? 'fault-high'
+          : 'fault-healthy',
+    };
+
+  }, [
+    network,
+    healthData,
+    route,
+    source,
+    destination,
+  ]);
+
+  // =====================================================
+  // FAILURE RISK ASSESSMENT
+  // =====================================================
+
+  // Rule-based early-warning model using the simulator's live telemetry.
+  // This is intentionally transparent and explainable; it is not an ML model.
+  const riskAssessment = useMemo(() => {
+
+    const assessedLinks = network.links.map((link) => {
+
+      const telemetry =
+        healthData.linkTelemetry[
+          `${link.source}-${link.destination}`
+        ] || {
+          latency: 0,
+          packetLoss: 100,
+          congestion: 100,
+          health: 0,
+          availability: 0,
+        };
+
+      if (!link.active) {
+        return {
+          id: `risk-${link.source}-${link.destination}`,
+          component: `Link ${link.source} ↔ ${link.destination}`,
+          severity: "CRITICAL",
+          severityClass: "risk-critical",
+          score: 100,
+          prediction: "Failure already detected.",
+          recommendation: "Restore the link or route traffic through a healthy path.",
+          telemetry,
+        };
+      }
+
+      const healthRisk = clamp(100 - telemetry.health, 0, 100);
+      const latencyRisk = clamp((telemetry.latency - 10) * 2.5, 0, 100);
+      const lossRisk = clamp(telemetry.packetLoss * 15, 0, 100);
+      const congestionRisk = clamp(telemetry.congestion, 0, 100);
+
+      const score = Math.round(
+        healthRisk * 0.45 +
+        congestionRisk * 0.25 +
+        lossRisk * 0.20 +
+        latencyRisk * 0.10
+      );
+
+      const severity =
+        score >= 80
+          ? "CRITICAL"
+          : score >= 60
+          ? "HIGH"
+          : score >= 40
+          ? "MEDIUM"
+          : "LOW";
+
+      const severityClass =
+        severity === "CRITICAL"
+          ? "risk-critical"
+          : severity === "HIGH"
+          ? "risk-high"
+          : severity === "MEDIUM"
+          ? "risk-medium"
+          : "risk-low";
+
+      const prediction =
+        severity === "CRITICAL"
+          ? "Strong signs of instability detected."
+          : severity === "HIGH"
+          ? "The link is showing conditions that may lead to instability."
+          : severity === "MEDIUM"
+          ? "The link should be monitored for worsening conditions."
+          : "No significant near-term instability is indicated.";
+
+      const recommendation =
+        severity === "CRITICAL" || severity === "HIGH"
+          ? "Prefer a healthier alternate path when available."
+          : severity === "MEDIUM"
+          ? "Continue monitoring and keep an alternate route ready."
+          : "Continue normal operation.";
+
+      return {
+        id: `risk-${link.source}-${link.destination}`,
+        component: `Link ${link.source} ↔ ${link.destination}`,
+        severity,
+        severityClass,
+        score,
+        prediction,
+        recommendation,
+        telemetry,
+      };
+    });
+
+    return assessedLinks.sort((first, second) => {
+      if (second.score !== first.score) {
+        return second.score - first.score;
+      }
+
+      return first.component.localeCompare(second.component);
+    });
+
+  }, [
+    network.links,
+    healthData,
+  ]);
+
+  const riskSummary = useMemo(() => {
+
+    const highRisk = riskAssessment.filter(
+      (item) => item.severity === "HIGH" || item.severity === "CRITICAL"
+    );
+
+    const critical = riskAssessment.filter(
+      (item) => item.severity === "CRITICAL"
+    );
+
+    const averageRisk =
+      riskAssessment.length > 0
+        ? Math.round(
+            riskAssessment.reduce(
+              (sum, item) => sum + item.score,
+              0
+            ) / riskAssessment.length
+          )
+        : 0;
+
+    return {
+      highRiskCount: highRisk.length,
+      criticalCount: critical.length,
+      averageRisk,
+      overallStatus:
+        critical.length > 0
+          ? "CRITICAL RISK"
+          : highRisk.length > 0
+          ? "HIGH RISK"
+          : averageRisk >= 40
+          ? "WATCH"
+          : "LOW RISK",
+      overallClass:
+        critical.length > 0
+          ? "risk-critical"
+          : highRisk.length > 0
+          ? "risk-high"
+          : averageRisk >= 40
+          ? "risk-medium"
+          : "risk-low",
+    };
+
+  }, [riskAssessment]);
 
   // =====================================================
   // LOAD NETWORK
@@ -1898,6 +2340,79 @@ function App() {
 
     } finally {
 
+      setLoading(false);
+    }
+  };
+
+  // =====================================================
+  // UPDATE EXISTING LINK COST
+  // =====================================================
+
+  const updateLinkCost = async (link) => {
+
+    const linkKey = `${link.source}-${link.destination}`;
+    const cost = Number(
+      linkCostDrafts[linkKey] ?? String(link.cost)
+    );
+
+    if (!Number.isInteger(cost) || cost <= 0) {
+      setMessage("Link cost must be a positive integer.");
+      return;
+    }
+
+    if (cost === Number(link.cost)) {
+      setMessage(`Link ${link.source} ↔ ${link.destination} already has cost ${cost}.`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(
+        `${API_BASE}/link/update-cost?source=${encodeURIComponent(
+          link.source
+        )}&destination=${encodeURIComponent(
+          link.destination
+        )}&cost=${cost}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error || "Unable to update link cost.");
+        return;
+      }
+
+      setLinkCostDrafts((previous) => ({
+        ...previous,
+        [linkKey]: String(cost),
+      }));
+
+      await loadNetwork();
+
+      // The selected route may no longer be best after a weight change.
+      // Clear stale route recommendations and let Find Route recompute them.
+      setRoute([]);
+      setRouteCost(0);
+      setAdaptiveAnalysis([]);
+      setAdaptiveRoute([]);
+      setProactivePlan(null);
+      setPerformanceComparison(null);
+
+      setMessage(
+        `Updated ${link.source} ↔ ${link.destination} cost from ${link.cost} to ${cost}. Click Find Route to recalculate.`
+      );
+
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
+        `Link ${link.source} ↔ ${link.destination} cost changed from ${link.cost} to ${cost}.`
+      );
+
+    } catch (error) {
+      console.error(error);
+      setMessage("Unable to connect to backend while updating link cost.");
+    } finally {
       setLoading(false);
     }
   };
@@ -2235,6 +2750,264 @@ function App() {
   };
 
   // =====================================================
+  // PROACTIVE RECOVERY
+  // =====================================================
+
+  const prepareProactiveRecovery = () => {
+
+    if (!source || !destination || source === destination) {
+      setMessage("Select different source and destination routers first.");
+      return;
+    }
+
+    if (packetActive || healingInProgress) {
+      setMessage("Wait for the current packet transmission or recovery to finish before preparing a proactive route.");
+      return;
+    }
+
+    const candidates = getAdaptiveRouteAnalysis(source, destination);
+
+    if (!candidates.length) {
+      setProactivePlan({
+        status: "NO_ROUTE",
+        message: `No active route is available from ${source} to ${destination}.`,
+      });
+      setMessage("Proactive recovery could not find an active route to evaluate.");
+      return;
+    }
+
+    const samePath = (first, second) =>
+      Array.isArray(first) &&
+      Array.isArray(second) &&
+      first.length === second.length &&
+      first.every((routerId, index) => routerId === second[index]);
+
+    const requestedRouteIsValid =
+      route.length >= 2 &&
+      route[0] === source &&
+      route[route.length - 1] === destination;
+
+    const currentMetrics = requestedRouteIsValid
+      ? candidates.find((candidate) => samePath(candidate.path, route)) || candidates[0]
+      : candidates[0];
+
+    const currentPath = currentMetrics.path;
+
+    const routeLinks = network.links.filter((link) => {
+      if (!link.active) return false;
+      for (let index = 0; index < currentPath.length - 1; index += 1) {
+        const first = currentPath[index];
+        const second = currentPath[index + 1];
+        if (
+          (link.source === first && link.destination === second) ||
+          (link.source === second && link.destination === first)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!routeLinks.length) {
+      setProactivePlan({
+        status: "NO_ROUTE",
+        message: "The current route has no active links available for analysis.",
+      });
+      setMessage("No active route links were available for proactive analysis.");
+      return;
+    }
+
+    const linksWithRisk = routeLinks.map((link) => {
+      const risk = riskAssessment.find(
+        (item) => item.id === `risk-${link.source}-${link.destination}`
+      ) || {
+        score: 0,
+        severity: "LOW",
+        severityClass: "risk-low",
+        prediction: "No major instability is indicated.",
+      };
+      return { link, risk };
+    }).sort((first, second) => second.risk.score - first.risk.score);
+
+    const atRisk = linksWithRisk[0];
+    const riskLink = atRisk.link;
+
+    const usesRiskLink = (path) => {
+      for (let index = 0; index < path.length - 1; index += 1) {
+        const first = path[index];
+        const second = path[index + 1];
+        if (
+          (riskLink.source === first && riskLink.destination === second) ||
+          (riskLink.source === second && riskLink.destination === first)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const alternatives = candidates.filter(
+      (candidate) => !usesRiskLink(candidate.path)
+    );
+
+    if (!alternatives.length) {
+      setProactivePlan({
+        status: "NO_ALTERNATIVE",
+        current: currentMetrics,
+        currentPath,
+        riskLink,
+        risk: atRisk.risk,
+        alternatives: [],
+        message: `No alternate route from ${source} to ${destination} avoids Link ${riskLink.source} ↔ ${riskLink.destination}. Add network redundancy before attempting proactive rerouting.`,
+      });
+      setMessage(`No alternate route is available to avoid Link ${riskLink.source} ↔ ${riskLink.destination}.`);
+      appendNetworkEvent(
+        setNetworkEvents,
+        "PROACTIVE",
+        `Proactive analysis found no alternate route avoiding Link ${riskLink.source} ↔ ${riskLink.destination}.`
+      );
+      return;
+    }
+
+    // Candidates are already ordered by adaptive route score, so the first
+    // path here is the strongest alternative that avoids the selected link.
+    const alternative = alternatives[0];
+    const scoreDifference = alternative.score - currentMetrics.score;
+    const linkRiskScore = atRisk.risk.score;
+
+    // Do not recommend a route just because it avoids the highest-risk link.
+    // A low-risk link does not justify switching to a clearly worse path.
+    // Higher risk can justify a modest score trade-off because the link may
+    // become unavailable; critical risk justifies preparing any viable detour.
+    const alternativeScoresBetter = scoreDifference > 0;
+    const riskJustifiesTradeoff =
+      linkRiskScore >= 80 ||
+      (linkRiskScore >= 60 && scoreDifference >= -15) ||
+      (linkRiskScore >= 40 && scoreDifference >= -5);
+
+    if (!alternativeScoresBetter && !riskJustifiesTradeoff) {
+      const messageText =
+        `Current route ${currentPath.join(" → ")} remains preferred. ` +
+        `Link ${riskLink.source} ↔ ${riskLink.destination} has ${atRisk.risk.severity.toLowerCase()} risk (${linkRiskScore}/100), ` +
+        `and the best route that avoids it, ${alternative.path.join(" → ")}, scores ${alternative.score}/100 versus ${currentMetrics.score}/100 for the current route. ` +
+        `Switching is not justified, so Resilio will not label that alternative safer. No link was failed and the current route has not been changed.`;
+
+      setProactivePlan({
+        status: "NO_IMPROVEMENT",
+        current: currentMetrics,
+        currentPath,
+        riskLink,
+        risk: atRisk.risk,
+        alternate: null,
+        alternatives,
+        candidates,
+        message: messageText,
+      });
+      setPerformanceComparison(null);
+      setMessage(messageText);
+      appendNetworkEvent(
+        setNetworkEvents,
+        "PROACTIVE",
+        `No proactive switch recommended. Current route score ${currentMetrics.score}/100; best detour score ${alternative.score}/100; Link ${riskLink.source} ↔ ${riskLink.destination} risk ${linkRiskScore}/100. Current route unchanged.`
+      );
+      return;
+    }
+
+    const recommendationReason = alternativeScoresBetter
+      ? `The alternative scores ${alternative.score}/100, higher than the current route's ${currentMetrics.score}/100, and avoids Link ${riskLink.source} ↔ ${riskLink.destination}.`
+      : `Link ${riskLink.source} ↔ ${riskLink.destination} has ${atRisk.risk.severity.toLowerCase()} risk (${linkRiskScore}/100), which justifies preparing this detour despite its route score of ${alternative.score}/100 versus ${currentMetrics.score}/100 for the current route.`;
+
+    const plan = {
+      status: "READY",
+      current: currentMetrics,
+      currentPath,
+      riskLink,
+      risk: atRisk.risk,
+      alternate: alternative,
+      alternatives,
+      candidates,
+      message: `${recommendationReason} Resilio found an available alternative before failure; no link was failed automatically.`,
+    };
+
+    setProactivePlan(plan);
+    setPerformanceComparison({
+      status: "PROPOSED",
+      before: currentMetrics,
+      after: alternative,
+      riskLink: {
+        source: riskLink.source,
+        destination: riskLink.destination,
+      },
+      packetStatus: "Not tested yet",
+      createdAt: Date.now(),
+    });
+    setMessage(
+      `Proactive route prepared: use ${alternative.path.join(" → ")} to avoid Link ${riskLink.source} ↔ ${riskLink.destination}. ${recommendationReason}`
+    );
+    appendNetworkEvent(
+      setNetworkEvents,
+      "PROACTIVE",
+      `Proactive alternative prepared: ${alternative.path.join(" → ")} avoids Link ${riskLink.source} ↔ ${riskLink.destination} (risk ${linkRiskScore}/100); the link has not been failed.`
+    );
+  };
+
+  const applyProactiveRecovery = () => {
+
+    if (!proactivePlan || !proactivePlan.alternate) {
+      setMessage("Analyze a safer route first.");
+      return;
+    }
+
+    if (packetActive || healingInProgress) {
+      setMessage("Wait for the current packet transmission or recovery to finish before applying a proactive route.");
+      return;
+    }
+
+    const chosen = proactivePlan.alternate;
+    const routeKey = chosen.path.join("→");
+    const reorderedAnalysis = [
+      chosen,
+      ...(proactivePlan.candidates || []).filter(
+        (candidate) => candidate.path.join("→") !== routeKey
+      ),
+    ];
+
+    setAdaptiveAnalysis(reorderedAnalysis);
+    setAdaptiveRoute(chosen.path);
+    setRoute(chosen.path);
+    setRouteCost(chosen.cost);
+    setPacketActive(false);
+    setPacketStep(0);
+    setPacketProgress(0);
+    setPacketRoute([]);
+    setPacketStatus("READY");
+    setSelfHealingMode(false);
+    setHealingInProgress(false);
+    setHealingMessage("Proactive route applied. Send a packet to verify delivery on the safer path.");
+    setProactivePlan({ ...proactivePlan, status: "APPLIED" });
+    setPerformanceComparison((previous) => ({
+      status: "APPLIED",
+      before: previous?.before || proactivePlan.current,
+      after: chosen,
+      riskLink: previous?.riskLink || {
+        source: proactivePlan.riskLink.source,
+        destination: proactivePlan.riskLink.destination,
+      },
+      packetStatus: "Awaiting packet verification",
+      routeAppliedAt: Date.now(),
+    }));
+
+    setMessage(
+      `Proactive recovery applied: traffic will use ${chosen.path.join(" → ")} while Link ${proactivePlan.riskLink.source} ↔ ${proactivePlan.riskLink.destination} remains active.`
+    );
+    appendNetworkEvent(
+      setNetworkEvents,
+      "PROACTIVE",
+      `Proactive recovery applied before failure. Route changed to ${chosen.path.join(" → ")} (score ${chosen.score}/100), avoiding Link ${proactivePlan.riskLink.source} ↔ ${proactivePlan.riskLink.destination}; the link remains active.`
+    );
+  };
+
+  // =====================================================
   // FAIL COMPONENT
   // =====================================================
 
@@ -2408,6 +3181,16 @@ function App() {
     setPacketStep(0);
     setPacketProgress(0);
     setPacketStatus("TRANSMITTING");
+    setPerformanceComparison((previous) => {
+      if (!previous || !["APPLIED", "VERIFIED"].includes(previous.status)) {
+        return previous;
+      }
+      return {
+        ...previous,
+        status: "APPLIED",
+        packetStatus: "TRANSMITTING",
+      };
+    });
     setSelfHealingMode(false);
     setHealingInProgress(false);
     selfHealFailureInjected.current = false;
@@ -2886,6 +3669,26 @@ function App() {
         setPacketActive(false);
         setHealingInProgress(false);
         setPacketStatus("DELIVERED");
+        setPerformanceComparison((previous) => {
+          if (!previous || !["APPLIED", "VERIFIED"].includes(previous.status)) {
+            return previous;
+          }
+          const expectedPath = previous.after?.path || [];
+          const matchesAppliedRoute =
+            expectedPath.length === currentRoute.length &&
+            expectedPath.every((routerId, index) => routerId === currentRoute[index]);
+          if (!matchesAppliedRoute) {
+            return previous;
+          }
+          return {
+            ...previous,
+            status: "VERIFIED",
+            packetStatus: "DELIVERED",
+            deliveredPacketId: packetNumber,
+            deliveredRoute: currentRoute.slice(),
+            deliveryRecordedAt: Date.now(),
+          };
+        });
 
         if (selfHealingMode) {
           setHealingMessage(
@@ -2974,6 +3777,10 @@ function App() {
 
       setAdaptiveRoute([]);
 
+      setProactivePlan(null);
+      setPerformanceComparison(null);
+      setLinkCostDrafts({});
+
       setPacketActive(false);
 
       setPacketStep(0);
@@ -3012,6 +3819,10 @@ function App() {
       ]);
 
       await loadNetwork();
+
+      // Re-create the graph canvas after the default network has been loaded.
+      // This prevents React Flow occasionally keeping a stale/blank viewport.
+      setTopologyGeneration((generation) => generation + 1);
 
       setMessage(
         "Network reset successfully."
@@ -3054,11 +3865,14 @@ function App() {
 
       <header className="topbar">
 
-        <div>
+        <div className="brand-lockup">
 
-          <h1>
-            Resilio
-          </h1>
+          <img
+            src="/resilio-header-logo.png"
+            alt="Resilio logo"
+            className="brand-logo"
+            draggable="false"
+          />
 
           <p>
             Intelligent Network Fault Analysis & Adaptive Recovery System
@@ -3121,11 +3935,22 @@ function App() {
             ) : (
 
               <ReactFlow
+                key={topologyGeneration}
                 nodes={layoutedNodes}
                 edges={layoutedEdges}
-                fitView
-                fitViewOptions={{
-                  padding: 0.18,
+                onInit={(instance) => {
+                  reactFlowInstanceRef.current = instance;
+                  // Wait until the canvas and measured node bounds are ready.
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      if (reactFlowInstanceRef.current === instance) {
+                        instance.fitView({
+                          padding: 0.18,
+                          duration: 220,
+                        });
+                      }
+                    });
+                  });
                 }}
                 nodesDraggable={false}
                 nodesConnectable={false}
@@ -4150,6 +4975,18 @@ function App() {
           <div className="stat-card">
 
             <span>
+              Detected Faults
+            </span>
+
+            <strong>
+              {faultDiagnosis.failedCount}
+            </strong>
+
+          </div>
+
+          <div className="stat-card">
+
+            <span>
               Backend Status
             </span>
 
@@ -4379,6 +5216,472 @@ function App() {
         </section>
 
         {/* ==========================================
+            FAULT DIAGNOSIS & SEVERITY
+        ========================================== */}
+
+        <section className="panel fault-diagnosis-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <h2>
+                Fault Diagnosis & Severity
+              </h2>
+
+              <p>
+                Explainable analysis of failures and abnormal network conditions
+              </p>
+
+            </div>
+
+            <div
+              className={`fault-status-pill ${faultDiagnosis.overallClass}`}
+            >
+              {faultDiagnosis.overallStatus}
+            </div>
+
+          </div>
+
+          {faultDiagnosis.faults.length === 0 ? (
+
+            <div className="fault-healthy-card">
+
+              <div className="fault-healthy-icon">✓</div>
+
+              <div>
+                <strong>
+                  No active faults detected
+                </strong>
+
+                <span>
+                  Resilio is not detecting any failed or critically degraded network component.
+                </span>
+              </div>
+
+            </div>
+
+          ) : (
+
+            <div className="fault-list">
+
+              {faultDiagnosis.faults.map((fault) => (
+
+                <article
+                  className={`fault-card ${fault.severityClass}`}
+                  key={fault.id}
+                >
+
+                  <div className="fault-card-header">
+
+                    <div>
+                      <span className="fault-type">
+                        {fault.type}
+                      </span>
+                      <h3>
+                        {fault.component}
+                      </h3>
+                      <p>
+                        {fault.summary}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`fault-severity ${fault.severityClass}`}
+                    >
+                      {fault.severity}
+                    </span>
+
+                  </div>
+
+                  <div className="fault-detail-grid">
+
+                    <div>
+                      <span>Detected indicators</span>
+                      <ul>
+                        {fault.indicators.map((indicator) => (
+                          <li key={indicator}>
+                            {indicator}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <span>Impact</span>
+                      <p>
+                        {fault.impact}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span>Recommended action</span>
+                      <p>
+                        {fault.recommendation}
+                      </p>
+                    </div>
+
+                  </div>
+
+                </article>
+
+              ))}
+
+            </div>
+
+          )}
+
+          <div className="fault-diagnosis-note">
+            Diagnosis is rule-based and uses the simulator's current topology and simulated telemetry.
+          </div>
+
+        </section>
+
+        {/* ==========================================
+            FAILURE RISK ASSESSMENT
+        ========================================== */}
+
+        <section className="panel risk-assessment-panel">
+
+          <div className="panel-header">
+
+            <div>
+              <h2>Failure Risk Assessment</h2>
+              <p>
+                Early-warning analysis based on simulated network conditions
+              </p>
+            </div>
+
+            <div
+              className={`risk-status-pill ${riskSummary.overallClass}`}
+            >
+              {riskSummary.overallStatus}
+            </div>
+
+          </div>
+
+          <div className="risk-summary-grid">
+
+            <div className="risk-summary-card">
+              <span>Average Risk</span>
+              <strong>{riskSummary.averageRisk}/100</strong>
+            </div>
+
+            <div className="risk-summary-card">
+              <span>High / Critical Links</span>
+              <strong>{riskSummary.highRiskCount}</strong>
+            </div>
+
+            <div className="risk-summary-card">
+              <span>Critical Conditions</span>
+              <strong>{riskSummary.criticalCount}</strong>
+            </div>
+
+          </div>
+
+          {riskAssessment.length === 0 ? (
+            <div className="risk-empty-card">
+              No links are available for risk assessment.
+            </div>
+          ) : (
+            <div className="risk-list">
+
+              {riskAssessment.map((item) => (
+                <article
+                  className={`risk-card ${item.severityClass}`}
+                  key={item.id}
+                >
+
+                  <div className="risk-card-top">
+
+                    <div>
+                      <span className="risk-component-label">
+                        MONITORED LINK
+                      </span>
+                      <h3>{item.component}</h3>
+                      <p>{item.prediction}</p>
+                    </div>
+
+                    <div className={`risk-score-badge ${item.severityClass}`}>
+                      <strong>{item.score}</strong>
+                      <span>/100</span>
+                      <em>{item.severity} RISK</em>
+                    </div>
+
+                  </div>
+
+                  <div className="risk-metric-grid">
+
+                    <div>
+                      <span>Health</span>
+                      <strong>{item.telemetry.health}/100</strong>
+                    </div>
+
+                    <div>
+                      <span>Latency</span>
+                      <strong>{item.telemetry.latency} ms</strong>
+                    </div>
+
+                    <div>
+                      <span>Packet Loss</span>
+                      <strong>{item.telemetry.packetLoss}%</strong>
+                    </div>
+
+                    <div>
+                      <span>Congestion</span>
+                      <strong>{item.telemetry.congestion}%</strong>
+                    </div>
+
+                  </div>
+
+                  <div className="risk-recommendation">
+                    <span>Recommendation</span>
+                    <p>{item.recommendation}</p>
+                  </div>
+
+                </article>
+              ))}
+
+            </div>
+          )}
+
+          <div className="risk-assessment-note">
+            * Risk is calculated using transparent rule-based scoring from simulated telemetry; it is intended for early-warning demonstration, not real-world failure prediction.
+          </div>
+
+        </section>
+
+        {/* ==========================================
+            PROACTIVE RECOVERY
+        ========================================== */}
+
+        <section className="panel proactive-recovery-panel">
+
+          <div className="panel-header">
+            <div>
+              <h2>Proactive Recovery</h2>
+              <p>Prepare a safer route before an active link completely fails</p>
+            </div>
+            <span className={`proactive-status-pill ${
+              proactivePlan?.status === "APPLIED"
+                ? "proactive-status-applied"
+                : proactivePlan?.status === "READY"
+                ? "proactive-status-ready"
+                : proactivePlan?.status === "NO_ALTERNATIVE" || proactivePlan?.status === "NO_ROUTE"
+                ? "proactive-status-blocked"
+                : "proactive-status-idle"
+            }`}>
+              {proactivePlan?.status === "APPLIED"
+                ? "ROUTE APPLIED"
+                : proactivePlan?.status === "READY"
+                ? "SAFER ROUTE READY"
+                : proactivePlan?.status === "NO_ALTERNATIVE"
+                ? "NO ALTERNATE PATH"
+                : proactivePlan?.status === "NO_ROUTE"
+                ? "ROUTE UNAVAILABLE"
+                : proactivePlan?.status === "NO_IMPROVEMENT"
+                ? "CURRENT ROUTE PREFERRED"
+                : "READY TO ANALYZE"}
+            </span>
+          </div>
+
+          <p className="proactive-intro">
+            Resilio examines the current route, identifies its highest-risk active link using simulated telemetry, and searches for an available route that avoids that link. This is a recommendation first; no failure is injected automatically.
+          </p>
+
+          {proactivePlan?.status === "READY" || proactivePlan?.status === "APPLIED" ? (
+            <div className="proactive-plan-grid">
+
+              <article className="proactive-plan-card proactive-current-card">
+                <span className="proactive-eyebrow">CURRENT ROUTE</span>
+                <h3>{proactivePlan.currentPath.join(" → ")}</h3>
+                <div className="proactive-route-metrics">
+                  <span>Cost <strong>{proactivePlan.current.cost}</strong></span>
+                  <span>Score <strong>{proactivePlan.current.score}/100</strong></span>
+                </div>
+                <div className="proactive-risk-link">
+                  <div>
+                    <span>Route link to avoid</span>
+                    <strong>{proactivePlan.riskLink.source} ↔ {proactivePlan.riskLink.destination}</strong>
+                  </div>
+                  <span className={`proactive-risk-tag ${proactivePlan.risk.severityClass}`}>
+                    {proactivePlan.risk.severity} · {proactivePlan.risk.score}/100
+                  </span>
+                </div>
+              </article>
+
+              <article className="proactive-plan-card proactive-alternative-card">
+                <span className="proactive-eyebrow">RECOMMENDED SAFER ROUTE</span>
+                <h3>{proactivePlan.alternate.path.join(" → ")}</h3>
+                <div className="proactive-route-metrics">
+                  <span>Cost <strong>{proactivePlan.alternate.cost}</strong></span>
+                  <span>Health <strong>{proactivePlan.alternate.health}/100</strong></span>
+                  <span>Score <strong>{proactivePlan.alternate.score}/100</strong></span>
+                </div>
+                <div className="proactive-telemetry-grid">
+                  <div><span>Latency</span><strong>{proactivePlan.alternate.latency} ms</strong></div>
+                  <div><span>Packet loss</span><strong>{proactivePlan.alternate.packetLoss}%</strong></div>
+                  <div><span>Congestion</span><strong>{proactivePlan.alternate.congestion}%</strong></div>
+                </div>
+              </article>
+
+            </div>
+          ) : (
+            <div className="proactive-empty-state">
+              {proactivePlan?.message || "Select a source and destination, find a route, then analyze a safer alternative. The system will keep every link active during planning."}
+            </div>
+          )}
+
+          {proactivePlan?.message && proactivePlan.status !== "NO_IMPROVEMENT" && (
+            <div className={`proactive-result-message ${proactivePlan.status === "NO_ALTERNATIVE" || proactivePlan.status === "NO_ROUTE" ? "proactive-result-warning" : ""}`}>
+              {proactivePlan.status === "APPLIED"
+                ? `Proactive route applied successfully. Link ${proactivePlan.riskLink.source} ↔ ${proactivePlan.riskLink.destination} remains active.`
+                : proactivePlan.message}
+            </div>
+          )}
+
+          <div className="proactive-actions">
+            <button
+              className="primary-button proactive-analyze-button"
+              onClick={prepareProactiveRecovery}
+              disabled={loading || packetActive || healingInProgress}
+            >
+              Analyze Safer Route
+            </button>
+            <button
+              className="primary-button proactive-apply-button"
+              onClick={applyProactiveRecovery}
+              disabled={
+                loading || packetActive || healingInProgress ||
+                !proactivePlan?.alternate || proactivePlan?.status === "APPLIED"
+              }
+            >
+              {proactivePlan?.status === "APPLIED" ? "Proactive Route Applied" : "Apply Proactive Recovery"}
+            </button>
+          </div>
+
+          <div className="proactive-note">
+            Risk scores are rule-based and use simulated link telemetry. Proactive recovery changes the selected route without forcing a link failure.
+          </div>
+
+        </section>
+
+        {/* ==========================================
+            PERFORMANCE ANALYSIS
+        ========================================== */}
+
+        <section className="panel performance-analysis-panel">
+
+          <div className="panel-header">
+            <div>
+              <h2>Performance Analysis</h2>
+              <p>Compare the original route with the proactive alternative</p>
+            </div>
+            <span className={`performance-status-pill ${
+              performanceComparison?.status === "VERIFIED"
+                ? "performance-status-verified"
+                : performanceComparison?.status === "APPLIED"
+                ? "performance-status-applied"
+                : performanceComparison?.status === "PROPOSED"
+                ? "performance-status-proposed"
+                : "performance-status-idle"
+            }`}>
+              {performanceComparison?.status === "VERIFIED"
+                ? "PACKET VERIFIED"
+                : performanceComparison?.status === "APPLIED"
+                ? "ROUTE APPLIED"
+                : performanceComparison?.status === "PROPOSED"
+                ? "COMPARISON READY"
+                : "AWAITING ANALYSIS"}
+            </span>
+          </div>
+
+          {!performanceComparison ? (
+            <div className="performance-empty-state">
+              Run <strong>Analyze Safer Route</strong> in the Proactive Recovery section to create a before-and-after comparison.
+              After applying the route, use <strong>Send Packet</strong> to verify delivery on the selected alternative.
+            </div>
+          ) : !performanceComparison.after ? (
+            <div className="performance-empty-state">
+              {performanceComparison.message || "No alternative route is available to compare yet."}
+            </div>
+          ) : (
+            <>
+              <div className="performance-route-summary-grid">
+                <article className="performance-route-summary performance-route-before">
+                  <span className="performance-eyebrow">BASELINE ROUTE</span>
+                  <h3>{performanceComparison.before?.path?.join(" → ") || "—"}</h3>
+                  <p>Cost {performanceComparison.before?.cost ?? "—"} · Health {performanceComparison.before?.health ?? "—"}/100 · Score {performanceComparison.before?.score ?? "—"}/100</p>
+                </article>
+                <article className="performance-route-summary performance-route-after">
+                  <span className="performance-eyebrow">PROACTIVE ROUTE</span>
+                  <h3>{performanceComparison.after.path?.join(" → ") || "—"}</h3>
+                  <p>Cost {performanceComparison.after.cost ?? "—"} · Health {performanceComparison.after.health ?? "—"}/100 · Score {performanceComparison.after.score ?? "—"}/100</p>
+                </article>
+              </div>
+
+              <div className="performance-table-wrap">
+                <table className="performance-comparison-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Baseline</th>
+                      <th>Proactive Route</th>
+                      <th>Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { key: "cost", label: "Route cost", unit: "", lowerBetter: true },
+                      { key: "health", label: "Network health", unit: "/100", lowerBetter: false },
+                      { key: "latency", label: "Average latency", unit: " ms", lowerBetter: true },
+                      { key: "packetLoss", label: "Average packet loss", unit: "%", lowerBetter: true },
+                      { key: "congestion", label: "Average congestion", unit: "%", lowerBetter: true },
+                      { key: "score", label: "Adaptive score", unit: "/100", lowerBetter: false },
+                    ].map((metric) => {
+                      const beforeValue = Number(performanceComparison.before?.[metric.key] ?? 0);
+                      const afterValue = Number(performanceComparison.after?.[metric.key] ?? 0);
+                      const delta = Number((afterValue - beforeValue).toFixed(1));
+                      const improved = delta === 0 ? null : (metric.lowerBetter ? delta < 0 : delta > 0);
+                      const valueText = (value) => `${Number.isInteger(value) ? value : value.toFixed(1)}${metric.unit}`;
+                      const changeText = delta === 0
+                        ? "No change"
+                        : `${delta > 0 ? "+" : ""}${delta}${metric.unit} · ${improved ? "improved" : "increased"}`;
+                      return (
+                        <tr key={metric.key}>
+                          <td>{metric.label}</td>
+                          <td>{valueText(beforeValue)}</td>
+                          <td>{valueText(afterValue)}</td>
+                          <td className={improved === null ? "performance-neutral" : improved ? "performance-improved" : "performance-degraded"}>{changeText}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className={`performance-delivery-result ${performanceComparison.status === "VERIFIED" ? "performance-delivery-success" : ""}`}>
+                <div>
+                  <span className="performance-eyebrow">PACKET DELIVERY CHECK</span>
+                  <strong>{performanceComparison.status === "VERIFIED" ? `Packet #${performanceComparison.deliveredPacketId} delivered successfully` : performanceComparison.status === "APPLIED" ? "Send a packet to verify the proactive route" : "Recommendation prepared; route not applied yet"}</strong>
+                  <p>{performanceComparison.status === "VERIFIED"
+                    ? `Verified delivery through ${performanceComparison.deliveredRoute?.join(" → ") || performanceComparison.after.path.join(" → ")}.`
+                    : performanceComparison.status === "APPLIED"
+                    ? "The route comparison is available. Delivery is recorded only after the packet reaches the destination on this exact route."
+                    : "These metrics compare the current route with the proposed alternative. Apply the recommendation to change the selected route."}</p>
+                </div>
+                <span className="performance-delivery-badge">{performanceComparison.packetStatus || "Not tested"}</span>
+              </div>
+            </>
+          )}
+
+          <div className="performance-note">
+            Metrics are calculated from the simulator's rule-based, simulated telemetry and route candidates. They demonstrate relative route characteristics; they are not measurements from a physical network.
+          </div>
+
+        </section>
+
+        {/* ==========================================
             NETWORK LINKS
         ========================================== */}
 
@@ -4393,7 +5696,7 @@ function App() {
               </h2>
 
               <p>
-                Current connection status
+                View connection status and edit link costs
               </p>
 
             </div>
@@ -4403,38 +5706,67 @@ function App() {
           <div className="link-list">
 
             {network.links.map(
-              (link) => (
+              (link) => {
+                const linkKey = `${link.source}-${link.destination}`;
 
-                <div
-                  className="link-item"
-                  key={`${link.source}-${link.destination}`}
-                >
-
-                  <span>
-                    {link.source}
-                    {" ↔ "}
-                    {link.destination}
-                  </span>
-
-                  <span>
-                    Cost: {link.cost}
-                  </span>
-
-                  <span
-                    className={
-                      link.active
-                        ? "link-active"
-                        : "link-failed"
-                    }
+                return (
+                  <div
+                    className="link-item cost-edit-item"
+                    key={linkKey}
                   >
-                    {link.active
-                      ? "ACTIVE"
-                      : "FAILED"}
-                  </span>
+                    <span className="cost-edit-connection">
+                      {link.source}
+                      {" ↔ "}
+                      {link.destination}
+                    </span>
 
-                </div>
+                    <span className="cost-edit-current">
+                      Current cost: <strong>{link.cost}</strong>
+                    </span>
 
-              )
+                    <span
+                      className={
+                        link.active
+                          ? "link-active"
+                          : "link-failed"
+                      }
+                    >
+                      {link.active ? "ACTIVE" : "FAILED"}
+                    </span>
+
+                    <div className="cost-edit-controls">
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={linkCostDrafts[linkKey] ?? String(link.cost)}
+                        onChange={(event) =>
+                          setLinkCostDrafts((previous) => ({
+                            ...previous,
+                            [linkKey]: event.target.value,
+                          }))
+                        }
+                        aria-label={`New cost for link ${link.source} to ${link.destination}`}
+                        title={`Enter a positive integer cost for ${link.source} ↔ ${link.destination}`}
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        className="cost-edit-button"
+                        onClick={() => updateLinkCost(link)}
+                        disabled={loading || !link.active}
+                        title={!link.active ? "Recover the link before editing its cost" : "Update this link cost"}
+                      >
+                        Update Cost
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+            )}
+
+            {network.links.length === 0 && (
+              <p className="empty-message">No links are available to edit.</p>
             )}
 
           </div>

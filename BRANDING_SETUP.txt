@@ -1,0 +1,21 @@
+RESILIO BRANDING SETUP
+=====================
+
+This package places the Resilio logo in the application header and replaces the Vite lightning favicon in the browser tab. Existing routing/recovery features are preserved from the tested reset-topology version.
+
+1. Extract this ZIP into the project root folder (the folder containing backend and frontend). Allow it to replace:
+   frontend/src/App.jsx
+   frontend/src/App.css
+
+2. The two logo assets are added at:
+   frontend/public/resilio-header-logo.png
+   frontend/public/resilio-icon.svg
+
+3. Open frontend/index.html. Keep your existing title, but in the <head> find the favicon line that refers to vite.svg and replace that line with:
+   <link rel="icon" type="image/svg+xml" href="/resilio-icon.svg" />
+
+   If there is no existing favicon line, add the line above inside <head>.
+
+4. Save the files. Vite should reload. If the browser tab still shows the old lightning icon, hard-refresh with Ctrl+F5 or close and reopen the tab because favicons are cached.
+
+5. Check the header, network topology, link-cost editing, reset button and proactive recovery once after applying the branding.

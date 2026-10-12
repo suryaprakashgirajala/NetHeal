@@ -2,7 +2,7 @@ package com.netheal.recovery;
 
 import com.netheal.graph.NetworkGraph;
 import com.netheal.metrics.NetworkMetrics;
-import com.netheal.routing.DijkstraRouter;
+import com.netheal.routing.AStarRouter;
 
 import java.util.List;
 
@@ -43,7 +43,7 @@ public class SelfHealingEngine {
 
         // Calculate new route
         List<String> newRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination

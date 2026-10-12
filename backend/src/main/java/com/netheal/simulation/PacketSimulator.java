@@ -2,7 +2,7 @@ package com.netheal.simulation;
 
 import com.netheal.graph.NetworkGraph;
 import com.netheal.metrics.NetworkMetrics;
-import com.netheal.routing.DijkstraRouter;
+import com.netheal.routing.AStarRouter;
 
 import java.util.List;
 
@@ -38,7 +38,7 @@ public class PacketSimulator {
         );
 
         List<String> path =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         packet.getSource(),
                         packet.getDestination()

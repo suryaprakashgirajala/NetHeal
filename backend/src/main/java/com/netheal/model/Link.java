@@ -4,10 +4,14 @@ public class Link {
 
     private final Router source;
     private final Router destination;
-    private final int cost;
+    private int cost;
     private boolean active;
 
     public Link(Router source, Router destination, int cost) {
+        if (cost <= 0) {
+            throw new IllegalArgumentException("Link cost must be greater than zero.");
+        }
+
         this.source = source;
         this.destination = destination;
         this.cost = cost;
@@ -24,6 +28,14 @@ public class Link {
 
     public int getCost() {
         return cost;
+    }
+
+    public void setCost(int cost) {
+        if (cost <= 0) {
+            throw new IllegalArgumentException("Link cost must be greater than zero.");
+        }
+
+        this.cost = cost;
     }
 
     public boolean isActive() {

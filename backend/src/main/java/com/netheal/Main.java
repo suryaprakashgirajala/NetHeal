@@ -3,7 +3,7 @@ package com.netheal;
 import com.netheal.graph.NetworkGraph;
 import com.netheal.model.Link;
 import com.netheal.model.Router;
-import com.netheal.routing.DijkstraRouter;
+import com.netheal.routing.AStarRouter;
 import com.netheal.simulation.Packet;
 import com.netheal.simulation.PacketSimulator;
 import com.netheal.recovery.SelfHealingEngine;
@@ -85,7 +85,7 @@ public class Main {
 
         // Find initial route
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -101,7 +101,7 @@ public class Main {
 
         System.out.println(
                 "Initial Cost  : "
-                        + DijkstraRouter.calculatePathCost(
+                        + AStarRouter.calculatePathCost(
                                 network,
                                 initialRoute
                         )
@@ -231,7 +231,7 @@ public class Main {
 
         // Find initial route
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -247,7 +247,7 @@ public class Main {
 
         System.out.println(
                 "Initial Cost  : "
-                        + DijkstraRouter.calculatePathCost(
+                        + AStarRouter.calculatePathCost(
                                 network,
                                 initialRoute
                         )
@@ -407,14 +407,14 @@ public class Main {
         );
 
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
                 );
 
         int initialCost =
-                DijkstraRouter.calculatePathCost(
+                AStarRouter.calculatePathCost(
                         network,
                         initialRoute
                 );
@@ -475,7 +475,7 @@ public class Main {
         if (!recoveredRoute.isEmpty()) {
 
             int recoveredCost =
-                    DijkstraRouter.calculatePathCost(
+                    AStarRouter.calculatePathCost(
                             network,
                             recoveredRoute
                     );

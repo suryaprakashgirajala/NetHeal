@@ -6,7 +6,7 @@ import com.netheal.model.Link;
 import com.netheal.model.Router;
 import com.netheal.recovery.FailureDetector;
 import com.netheal.recovery.SelfHealingEngine;
-import com.netheal.routing.DijkstraRouter;
+import com.netheal.routing.AStarRouter;
 
 import java.util.List;
 
@@ -44,7 +44,7 @@ public class SimulationManager {
         String destination = "D";
 
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -137,7 +137,7 @@ public class SimulationManager {
         String destination = "D";
 
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
@@ -257,14 +257,14 @@ public class SimulationManager {
         String destination = "D";
 
         List<String> initialRoute =
-                DijkstraRouter.findShortestPath(
+                AStarRouter.findShortestPath(
                         network,
                         source,
                         destination
                 );
 
         int initialCost =
-                DijkstraRouter.calculatePathCost(
+                AStarRouter.calculatePathCost(
                         network,
                         initialRoute
                 );
@@ -311,7 +311,7 @@ public class SimulationManager {
         if (!recoveredRoute.isEmpty()) {
 
             int recoveredCost =
-                    DijkstraRouter.calculatePathCost(
+                    AStarRouter.calculatePathCost(
                             network,
                             recoveredRoute
                     );
