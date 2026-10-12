@@ -67,8 +67,9 @@ const PacketScreenOverlay = ({ position, active, status }) => {
   );
 };
 
-const API_BASE =
-  "http://localhost:8080/api";
+const API_BASE = (
+  import.meta.env.VITE_API_BASE || "http://localhost:8080/api"
+).replace(/\/+$/, "");
 
 const NODE_WIDTH = 110;
 const NODE_HEIGHT = 78;
