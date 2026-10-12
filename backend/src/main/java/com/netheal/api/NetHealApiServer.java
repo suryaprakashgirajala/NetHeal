@@ -20,7 +20,10 @@ import java.util.Map;
 
 public class NetHealApiServer {
 
-    private static final int PORT = 8080;
+    // Use the hosting platform's assigned port when deployed; default to 8080 locally.
+    private static final int PORT = Integer.parseInt(
+            System.getenv().getOrDefault("PORT", "8080")
+    );
 
     private static NetworkGraph network;
 
