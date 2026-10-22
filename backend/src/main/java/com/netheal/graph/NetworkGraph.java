@@ -4,7 +4,7 @@ import com.netheal.model.Link;
 import com.netheal.model.Router;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +14,8 @@ public class NetworkGraph {
     private final List<Link> links;
 
     public NetworkGraph() {
-        routers = new HashMap<>();
+        // Preserve router insertion order for consistent UI dropdowns and layout.
+        routers = new LinkedHashMap<>();
         links = new ArrayList<>();
     }
 
@@ -24,6 +25,25 @@ public class NetworkGraph {
 
     public void addLink(Link link) {
         links.add(link);
+    }
+
+    /** Removes a router and every link that uses it. */
+    public boolean removeRouter(String id) {
+        Router removed = routers.remove(id);
+        if (removed == null) {
+            return false;
+        }
+
+        links.removeIf(link ->
+                link.getSource().getId().equals(id)
+                        || link.getDestination().getId().equals(id));
+        return true;
+    }
+
+    /** Removes the connection between two routers, regardless of direction. */
+    public boolean removeLink(String router1, String router2) {
+        Link link = getLink(router1, router2);
+        return link != null && links.remove(link);
     }
 
     public Router getRouter(String id) {
@@ -39,13 +59,10 @@ public class NetworkGraph {
     }
 
     public Link getLink(String router1, String router2) {
-
         for (Link link : links) {
-
             boolean forward =
                     link.getSource().getId().equals(router1)
                             && link.getDestination().getId().equals(router2);
-
             boolean reverse =
                     link.getSource().getId().equals(router2)
                             && link.getDestination().getId().equals(router1);
@@ -59,17 +76,13 @@ public class NetworkGraph {
     }
 
     public void displayNetwork() {
-
         System.out.println("\n===== NETWORK TOPOLOGY =====");
-
         System.out.println("\nRouters:");
-
         for (Router router : routers.values()) {
             System.out.println(router);
         }
 
         System.out.println("\nLinks:");
-
         for (Link link : links) {
             System.out.println(link);
         }

@@ -48,6 +48,12 @@ public class NetHealApiServer {
                 NetHealApiServer::handleNetwork
         );
 
+        // Switch between the built-in small and large topology presets.
+        server.createContext(
+                "/api/topology",
+                NetHealApiServer::handleTopologyPreset
+        );
+
         server.createContext(
                 "/api/route",
                 NetHealApiServer::handleRoute
@@ -79,10 +85,22 @@ public class NetHealApiServer {
                 NetHealApiServer::handleAddRouter
         );
 
+        // Remove a router and all links connected to it.
+        server.createContext(
+                "/api/router/remove",
+                NetHealApiServer::handleRemoveRouter
+        );
+
         // Dynamic link creation
         server.createContext(
                 "/api/link/add",
                 NetHealApiServer::handleAddLink
+        );
+
+        // Remove an existing connection.
+        server.createContext(
+                "/api/link/remove",
+                NetHealApiServer::handleRemoveLink
         );
 
         // Update the cost/weight of an existing link
@@ -104,6 +122,40 @@ public class NetHealApiServer {
         );
 
         server.start();
+    }
+
+    // =========================================================
+    // LOAD TOPOLOGY PRESET
+    // =========================================================
+
+    private static void handleTopologyPreset(
+            HttpExchange exchange) throws IOException {
+
+        addCorsHeaders(exchange);
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 204, "");
+            return;
+        }
+
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String size = params.get("size");
+
+        if ("small".equalsIgnoreCase(size)) {
+            network = createSmallNetwork();
+            sendResponse(exchange, 200,
+                    "{\"success\":true,\"size\":\"small\",\"routerCount\":4,\"linkCount\":4,\"message\":\"Small topology loaded\"}");
+            return;
+        }
+
+        if ("large".equalsIgnoreCase(size)) {
+            network = createNetwork();
+            sendResponse(exchange, 200,
+                    "{\"success\":true,\"size\":\"large\",\"routerCount\":16,\"linkCount\":25,\"message\":\"Large topology loaded\"}");
+            return;
+        }
+
+        sendResponse(exchange, 400,
+                "{\"error\":\"size must be either small or large\"}");
     }
 
     // =========================================================
@@ -576,13 +628,17 @@ public class NetHealApiServer {
             return;
         }
 
-        network =
-                createNetwork();
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String size = params.get("size");
+        boolean small = "small".equalsIgnoreCase(size);
+        network = small ? createSmallNetwork() : createNetwork();
 
         sendResponse(
                 exchange,
                 200,
-                "{\"success\":true,\"message\":\"Network reset\"}"
+                "{\"success\":true,\"size\":\""
+                        + (small ? "small" : "large")
+                        + "\",\"message\":\"Network reset\"}"
         );
     }
 
@@ -662,6 +718,52 @@ public class NetHealApiServer {
                 200,
                 json
         );
+    }
+
+    // =========================================================
+    // REMOVE ROUTER
+    // =========================================================
+
+    private static void handleRemoveRouter(
+            HttpExchange exchange) throws IOException {
+
+        addCorsHeaders(exchange);
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 204, "");
+            return;
+        }
+
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String id = params.get("id");
+        if (id == null || id.isBlank()) {
+            sendResponse(exchange, 400,
+                    "{\"error\":\"router id is required\"}");
+            return;
+        }
+
+        Router router = network.getRouter(id);
+        if (router == null) {
+            sendResponse(exchange, 404,
+                    "{\"error\":\"Router not found\"}");
+            return;
+        }
+
+        if (network.getRouters().size() <= 2) {
+            sendResponse(exchange, 409,
+                    "{\"error\":\"At least two routers must remain in the network\"}");
+            return;
+        }
+
+        int previousLinkCount = network.getLinks().size();
+        network.removeRouter(id);
+        int removedLinks = previousLinkCount - network.getLinks().size();
+
+        sendResponse(exchange, 200,
+                "{\"success\":true,\"router\":\"" + id
+                        + "\",\"removedLinks\":" + removedLinks
+                        + ",\"routerCount\":" + network.getRouters().size()
+                        + ",\"linkCount\":" + network.getLinks().size()
+                        + ",\"message\":\"Router removed with its connected links\"}");
     }
 
     // =========================================================
@@ -832,6 +934,45 @@ public class NetHealApiServer {
     }
 
     // =========================================================
+    // REMOVE LINK
+    // =========================================================
+
+    private static void handleRemoveLink(
+            HttpExchange exchange) throws IOException {
+
+        addCorsHeaders(exchange);
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendResponse(exchange, 204, "");
+            return;
+        }
+
+        Map<String, String> params = getQueryParameters(exchange.getRequestURI());
+        String source = params.get("source");
+        String destination = params.get("destination");
+
+        if (source == null || source.isBlank()
+                || destination == null || destination.isBlank()) {
+            sendResponse(exchange, 400,
+                    "{\"error\":\"source and destination are required\"}");
+            return;
+        }
+
+        Link link = network.getLink(source, destination);
+        if (link == null) {
+            sendResponse(exchange, 404,
+                    "{\"error\":\"Link not found\"}");
+            return;
+        }
+
+        network.removeLink(source, destination);
+        sendResponse(exchange, 200,
+                "{\"success\":true,\"source\":\"" + source
+                        + "\",\"destination\":\"" + destination
+                        + "\",\"linkCount\":" + network.getLinks().size()
+                        + ",\"message\":\"Link removed\"}");
+    }
+
+    // =========================================================
     // UPDATE EXISTING LINK COST
     // =========================================================
 
@@ -912,61 +1053,84 @@ public class NetHealApiServer {
     // CREATE DEFAULT NETWORK
     // =========================================================
 
+    private static NetworkGraph createSmallNetwork() {
+        NetworkGraph graph = new NetworkGraph();
+        Map<String, Router> routers = new HashMap<>();
+
+        for (String id : List.of("A", "B", "C", "D")) {
+            Router router = new Router(id);
+            routers.put(id, router);
+            graph.addRouter(router);
+        }
+
+        connect(graph, routers, "A", "B", 2);
+        connect(graph, routers, "A", "C", 4);
+        connect(graph, routers, "B", "D", 3);
+        connect(graph, routers, "C", "D", 1);
+        return graph;
+    }
+
     private static NetworkGraph createNetwork() {
 
-        NetworkGraph graph =
-                new NetworkGraph();
+        NetworkGraph graph = new NetworkGraph();
+        Map<String, Router> routers = new HashMap<>();
 
-        Router A =
-                new Router("A");
+        // Create routers A-P in a predictable insertion order. NetworkGraph
+        // uses LinkedHashMap so the frontend dropdowns and default endpoints
+        // consistently list A first and P last.
+        for (char label = 'A'; label <= 'P'; label++) {
+            String id = String.valueOf(label);
+            Router router = new Router(id);
+            routers.put(id, router);
+            graph.addRouter(router);
+        }
 
-        Router B =
-                new Router("B");
-
-        Router C =
-                new Router("C");
-
-        Router D =
-                new Router("D");
-
-        graph.addRouter(A);
-        graph.addRouter(B);
-        graph.addRouter(C);
-        graph.addRouter(D);
-
-        graph.addLink(
-                new Link(
-                        A,
-                        B,
-                        2
-                )
-        );
-
-        graph.addLink(
-                new Link(
-                        A,
-                        C,
-                        4
-                )
-        );
-
-        graph.addLink(
-                new Link(
-                        B,
-                        D,
-                        3
-                )
-        );
-
-        graph.addLink(
-                new Link(
-                        C,
-                        D,
-                        1
-                )
-        );
+        // 25 bidirectional links with several alternative paths from A to P.
+        // The original Review 1 links A-B, A-C, B-D and C-D are retained.
+        connect(graph, routers, "A", "B", 2);
+        connect(graph, routers, "A", "C", 4);
+        connect(graph, routers, "B", "D", 3);
+        connect(graph, routers, "C", "D", 1);
+        connect(graph, routers, "A", "E", 3);
+        connect(graph, routers, "B", "F", 2);
+        connect(graph, routers, "C", "G", 2);
+        connect(graph, routers, "D", "E", 2);
+        connect(graph, routers, "D", "H", 4);
+        connect(graph, routers, "E", "F", 2);
+        connect(graph, routers, "E", "I", 2);
+        connect(graph, routers, "F", "I", 2);
+        connect(graph, routers, "F", "J", 3);
+        connect(graph, routers, "G", "J", 2);
+        connect(graph, routers, "G", "K", 4);
+        connect(graph, routers, "H", "L", 3);
+        connect(graph, routers, "I", "K", 3);
+        connect(graph, routers, "I", "M", 2);
+        connect(graph, routers, "J", "M", 2);
+        connect(graph, routers, "K", "N", 3);
+        connect(graph, routers, "L", "M", 2);
+        connect(graph, routers, "L", "O", 4);
+        connect(graph, routers, "M", "P", 3);
+        connect(graph, routers, "N", "P", 2);
+        connect(graph, routers, "O", "P", 2);
 
         return graph;
+    }
+
+    private static void connect(
+            NetworkGraph graph,
+            Map<String, Router> routers,
+            String sourceId,
+            String destinationId,
+            int cost) {
+
+        Router source = routers.get(sourceId);
+        Router destination = routers.get(destinationId);
+        if (source == null || destination == null) {
+            throw new IllegalArgumentException(
+                    "Unknown router in default topology: "
+                            + sourceId + "-" + destinationId);
+        }
+        graph.addLink(new Link(source, destination, cost));
     }
 
     // =========================================================

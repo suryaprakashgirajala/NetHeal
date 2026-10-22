@@ -74,8 +74,8 @@ const API_BASE = (
 const NODE_WIDTH = 110;
 const NODE_HEIGHT = 78;
 
-const X_GAP = 230;
-const Y_GAP = 150;
+const X_GAP = 175;
+const Y_GAP = 110;
 
 // =========================================================
 // SIMULATED NETWORK HEALTH TELEMETRY
@@ -240,7 +240,10 @@ const getSimulatedRouterTelemetry = (
 };
 
 // =========================================================
-// CLEAN NETWORK LAYOUT
+// STABLE NETWORK LAYOUT
+// Router positions are based on the topology itself, not on live link
+// status or the selected source/destination. This prevents nodes from
+// jumping around when self-healing temporarily marks a link/router failed.
 // =========================================================
 
 const getCleanLayout = (
@@ -249,264 +252,95 @@ const getCleanLayout = (
   sourceId,
   destinationId
 ) => {
-
   if (!routers.length) {
     return {};
   }
 
-  const activeRouters =
-    routers.filter(
-      (router) => router.active
-    );
-
-  // ---------------------------------------------
-  // Build adjacency map
-  // ---------------------------------------------
-
+  // Include every existing link in the layout graph, even when the
+  // connection is currently failed. Failure affects routing/edge styling,
+  // not the physical position of nodes on the canvas.
   const adjacency = new Map();
+  routers.forEach((router) => adjacency.set(router.id, []));
 
-  routers.forEach((router) => {
-    adjacency.set(
-      router.id,
-      []
-    );
+  links.forEach((link) => {
+    if (
+      adjacency.has(link.source) &&
+      adjacency.has(link.destination)
+    ) {
+      adjacency.get(link.source).push(link.destination);
+      adjacency.get(link.destination).push(link.source);
+    }
   });
 
-  links
-    .filter((link) => link.active)
-    .forEach((link) => {
+  // Sort neighbors to make the placement deterministic across refreshes.
+  adjacency.forEach((neighbors) => {
+    neighbors.sort((a, b) => a.localeCompare(b));
+  });
 
-      if (
-        adjacency.has(link.source) &&
-        adjacency.has(link.destination)
-      ) {
-
-        adjacency
-          .get(link.source)
-          .push(link.destination);
-
-        adjacency
-          .get(link.destination)
-          .push(link.source);
-      }
-    });
-
-  // ---------------------------------------------
-  // Choose starting node
-  // ---------------------------------------------
-
+  // Use a stable anchor. Do not use selected source/destination or active
+  // state, because either can change during route selection/self-healing.
+  const sortedRouters = [...routers].sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true })
+  );
   const start =
-    activeRouters.find(
-      (router) =>
-        router.id === sourceId
-    )?.id ||
-    activeRouters[0]?.id ||
-    routers[0].id;
+    sortedRouters.find((router) => router.id === "A")?.id ||
+    sortedRouters[0]?.id;
 
-  // ---------------------------------------------
-  // Breadth-first layering
-  // ---------------------------------------------
+  if (!start) {
+    return {};
+  }
 
-  const levels = new Map();
-
+  // Breadth-first layers over the full topology.
+  const levels = new Map([[start, 0]]);
   const queue = [start];
 
-  levels.set(start, 0);
-
   while (queue.length > 0) {
+    const current = queue.shift();
+    const currentLevel = levels.get(current);
 
-    const current =
-      queue.shift();
-
-    const currentLevel =
-      levels.get(current);
-
-    const neighbors =
-      adjacency.get(current) || [];
-
-    neighbors.forEach(
-      (neighbor) => {
-
-        if (!levels.has(neighbor)) {
-
-          levels.set(
-            neighbor,
-            currentLevel + 1
-          );
-
-          queue.push(neighbor);
-        }
+    for (const neighbor of adjacency.get(current) || []) {
+      if (!levels.has(neighbor)) {
+        levels.set(neighbor, currentLevel + 1);
+        queue.push(neighbor);
       }
-    );
+    }
   }
 
-  // ---------------------------------------------
-  // Put unreachable nodes at the end
-  // ---------------------------------------------
-
-  let maxLevel = 0;
-
-  levels.forEach(
-    (level) => {
-
-      if (level > maxLevel) {
-        maxLevel = level;
-      }
-
-    }
-  );
-
-  routers.forEach((router) => {
-
+  // Put disconnected components in deterministic columns at the right.
+  let maxLevel = Math.max(0, ...levels.values());
+  sortedRouters.forEach((router) => {
     if (!levels.has(router.id)) {
-
       maxLevel += 1;
-
-      levels.set(
-        router.id,
-        maxLevel
-      );
+      levels.set(router.id, maxLevel);
     }
   });
-
-  // ---------------------------------------------
-  // Force destination toward the right
-  // ---------------------------------------------
-
-  if (
-    destinationId &&
-    levels.has(destinationId)
-  ) {
-
-    const destinationLevel =
-      levels.get(destinationId);
-
-    const otherLevels =
-      [...levels.values()];
-
-    const desiredLevel =
-      Math.max(
-        destinationLevel,
-        maxLevel
-      );
-
-    levels.set(
-      destinationId,
-      desiredLevel
-    );
-
-    maxLevel =
-      Math.max(
-        maxLevel,
-        desiredLevel
-      );
-  }
-
-  // ---------------------------------------------
-  // Group routers by level
-  // ---------------------------------------------
 
   const grouped = new Map();
-
-  routers.forEach((router) => {
-
-    const level =
-      levels.get(router.id) ?? 0;
-
-    if (!grouped.has(level)) {
-      grouped.set(level, []);
-    }
-
-    grouped
-      .get(level)
-      .push(router);
+  sortedRouters.forEach((router) => {
+    const level = levels.get(router.id) ?? 0;
+    if (!grouped.has(level)) grouped.set(level, []);
+    grouped.get(level).push(router);
   });
-
-  // ---------------------------------------------
-  // Sort destination last in its level
-  // ---------------------------------------------
-
-  grouped.forEach((routerList) => {
-
-    routerList.sort((a, b) => {
-
-      if (
-        a.id === destinationId
-      ) {
-        return 1;
-      }
-
-      if (
-        b.id === destinationId
-      ) {
-        return -1;
-      }
-
-      return a.id.localeCompare(
-        b.id
-      );
-    });
-
-  });
-
-  // ---------------------------------------------
-  // Generate positions
-  // ---------------------------------------------
 
   const positions = {};
-
-  grouped.forEach(
-    (routerList, level) => {
-
-      const count =
-        routerList.length;
-
-      const totalHeight =
-        (count - 1) * Y_GAP;
-
-      const startY =
-        300 -
-        totalHeight / 2;
-
-      routerList.forEach(
-        (router, index) => {
-
-          let x =
-            120 +
-            level * X_GAP;
-
-          let y =
-            startY +
-            index * Y_GAP;
-
-          // Source at far left
-          if (
-            router.id === sourceId
-          ) {
-            x = 80;
-          }
-
-          // Destination near right side
-          if (
-            router.id === destinationId
-          ) {
-
-            x =
-              120 +
-              Math.max(
-                maxLevel,
-                3
-              ) * X_GAP;
-          }
-
-          positions[router.id] = {
-            x,
-            y,
-          };
-        }
+  [...grouped.entries()]
+    .sort(([levelA], [levelB]) => levelA - levelB)
+    .forEach(([level, routerList]) => {
+      routerList.sort((a, b) =>
+        a.id.localeCompare(b.id, undefined, { numeric: true })
       );
-    }
-  );
+
+      const count = routerList.length;
+      const totalHeight = (count - 1) * Y_GAP;
+      const startY = 300 - totalHeight / 2;
+
+      routerList.forEach((router, index) => {
+        positions[router.id] = {
+          x: 120 + level * X_GAP,
+          y: startY + index * Y_GAP,
+        };
+      });
+    });
 
   return positions;
 };
@@ -916,11 +750,74 @@ function App() {
   const [loading, setLoading] =
     useState(false);
 
+  // Branded in-app confirmation dialog used instead of native browser pop-ups.
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const confirmResolverRef = useRef(null);
+  const confirmActionButtonRef = useRef(null);
+
+  const requestConfirmation = (options) =>
+    new Promise((resolve) => {
+      // Safely settle any previous dialog if a second request is triggered.
+      if (confirmResolverRef.current) {
+        confirmResolverRef.current(false);
+      }
+
+      confirmResolverRef.current = resolve;
+      setConfirmDialog({
+        tone: "primary",
+        categoryLabel: "CONFIRM ACTION",
+        confirmLabel: "Continue",
+        cancelLabel: "Cancel",
+        ...options,
+      });
+    });
+
+  const resolveConfirmation = (confirmed) => {
+    const resolver = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setConfirmDialog(null);
+    if (resolver) resolver(confirmed);
+  };
+
+  useEffect(() => {
+    if (!confirmDialog) return undefined;
+
+    const handleDialogKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        resolveConfirmation(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleDialogKeyDown);
+    const focusTimer = window.setTimeout(() => {
+      confirmActionButtonRef.current?.focus();
+    }, 0);
+
+    return () => {
+      window.removeEventListener("keydown", handleDialogKeyDown);
+      window.clearTimeout(focusTimer);
+    };
+  }, [confirmDialog]);
+
   // =====================================================
   // ADD ROUTER
   // =====================================================
 
   const [newRouterId, setNewRouterId] =
+    useState("");
+
+  // Selectable built-in presets; manual topology edits mark the layout custom.
+  const [topologySelection, setTopologySelection] =
+    useState("large");
+
+  const [isCustomTopology, setIsCustomTopology] =
+    useState(false);
+
+  const [routerToRemove, setRouterToRemove] =
+    useState("");
+
+  const [linkToRemove, setLinkToRemove] =
     useState("");
 
   // =====================================================
@@ -1303,9 +1200,24 @@ function App() {
       destination,
     ]);
 
-  // Refit the topology after the network snapshot changes. Two animation
-  // frames give React Flow time to commit the new nodes and measure its canvas.
-  // This is independent of packet animation state, so it does not run every frame.
+  // This signature only changes when routers or link endpoints are added/removed.
+  // A failure/recovery or cost update should not reset the canvas viewport.
+  const topologyLayoutSignature = useMemo(() => {
+    const routerIds = network.routers
+      .map((router) => router.id)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .join(",");
+
+    const linkIds = network.links
+      .map((link) => [link.source, link.destination].sort().join("~"))
+      .sort()
+      .join(",");
+
+    return `${routerIds}|${linkIds}`;
+  }, [network.routers, network.links]);
+
+  // Refit only after structural topology changes. Self-healing can change
+  // link/router status, but stable node positions and the viewport remain intact.
   useEffect(() => {
     if (layoutedNodes.length === 0) {
       return;
@@ -1331,8 +1243,7 @@ function App() {
       cancelAnimationFrame(secondFrame);
     };
   }, [
-    network.routers,
-    network.links,
+    topologyLayoutSignature,
     layoutedNodes.length,
     topologyGeneration,
   ]);
@@ -2153,6 +2064,26 @@ function App() {
         );
       }
 
+      // Keep topology-management selectors in sync with the backend.
+      if (!data.routers.some((router) => router.id === routerToRemove)) {
+        setRouterToRemove(
+          data.routers.length > 0
+            ? data.routers[data.routers.length - 1].id
+            : ""
+        );
+      }
+
+      const selectedRemovalLinkExists = data.links.some(
+        (link) => JSON.stringify([link.source, link.destination]) === linkToRemove
+      );
+      if (!selectedRemovalLinkExists) {
+        setLinkToRemove(
+          data.links.length > 0
+            ? JSON.stringify([data.links[0].source, data.links[0].destination])
+            : ""
+        );
+      }
+
       if (
         activeRouters.length > 0
       ) {
@@ -2175,6 +2106,176 @@ function App() {
       setMessage(
         "Backend unavailable. Start the Java API server."
       );
+    }
+  };
+
+  // Clear route/packet recommendations whenever the graph structure changes.
+  const clearTopologyResults = () => {
+    setRoute([]);
+    setRouteCost(0);
+    setAdaptiveAnalysis([]);
+    setAdaptiveRoute([]);
+    setProactivePlan(null);
+    setPerformanceComparison(null);
+    setLinkCostDrafts({});
+    setPacketActive(false);
+    setPacketStep(0);
+    setPacketProgress(0);
+    setPacketStatus("READY");
+    setPacketRoute([]);
+    setOriginalPacketRoute([]);
+    setSelfHealingMode(false);
+    selfHealFailureInjected.current = false;
+    setHealingInProgress(false);
+    setHealingMessage("Topology changed. Find a route to begin.");
+  };
+
+  // Load either built-in topology. This replaces the current graph and any
+  // manually-added/removed routers or links, so the browser asks for confirmation.
+  const loadTopologyPreset = async () => {
+    const presetName = topologySelection === "small" ? "Small (4 routers)" : "Large (16 routers)";
+    const confirmed = await requestConfirmation({
+      title: "Load topology preset?",
+      message: `Load the ${presetName} preset? This replaces the current network, including manual router/link edits and failure states.`,
+      confirmLabel: "Load preset",
+      cancelLabel: "Keep current network",
+      tone: "primary",
+      categoryLabel: "TOPOLOGY CHANGE",
+    });
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_BASE}/topology?size=${encodeURIComponent(topologySelection)}`
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || "Unable to load the selected topology.");
+        return;
+      }
+
+      clearTopologyResults();
+      setIsCustomTopology(false);
+      await loadNetwork();
+      setTopologyGeneration((generation) => generation + 1);
+      setMessage(`${presetName} preset loaded: ${data.routerCount} routers and ${data.linkCount} links.`);
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
+        `Loaded ${topologySelection} topology preset (${data.routerCount} routers, ${data.linkCount} links).`
+      );
+    } catch (error) {
+      console.error(error);
+      setMessage("Unable to connect to backend while switching topology.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // =====================================================
+  // REMOVE ROUTER
+  // =====================================================
+
+  const removeSelectedRouter = async () => {
+    if (!routerToRemove) {
+      setMessage("Select a router to remove.");
+      return;
+    }
+
+    const confirmed = await requestConfirmation({
+      title: `Remove router ${routerToRemove}?`,
+      message: `This will permanently remove router ${routerToRemove} and every link connected to it. Parts of the network could become disconnected.`,
+      confirmLabel: "Remove router",
+      cancelLabel: "Keep router",
+      tone: "danger",
+      categoryLabel: "REMOVE ROUTER",
+    });
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_BASE}/router/remove?id=${encodeURIComponent(routerToRemove)}`
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || "Unable to remove router.");
+        return;
+      }
+
+      clearTopologyResults();
+      setIsCustomTopology(true);
+      await loadNetwork();
+      setTopologyGeneration((generation) => generation + 1);
+      setMessage(`Removed router ${routerToRemove} and ${data.removedLinks} connected link(s). ${data.routerCount} routers remain.`);
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
+        `Router ${routerToRemove} removed with ${data.removedLinks} connected link(s).`
+      );
+    } catch (error) {
+      console.error(error);
+      setMessage("Unable to connect to backend while removing router.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // =====================================================
+  // REMOVE LINK
+  // =====================================================
+
+  const removeSelectedLink = async () => {
+    if (!linkToRemove) {
+      setMessage("Select a link to remove.");
+      return;
+    }
+
+    let endpoints;
+    try {
+      endpoints = JSON.parse(linkToRemove);
+    } catch {
+      setMessage("Select a valid link to remove.");
+      return;
+    }
+    const [sourceId, destinationId] = endpoints;
+    const confirmed = await requestConfirmation({
+      title: `Remove link ${sourceId} ↔ ${destinationId}?`,
+      message: "This connection will be removed from the topology. Routes that depend on this link may change or become unavailable.",
+      confirmLabel: "Remove link",
+      cancelLabel: "Keep link",
+      tone: "danger",
+      categoryLabel: "REMOVE CONNECTION",
+    });
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_BASE}/link/remove?source=${encodeURIComponent(sourceId)}&destination=${encodeURIComponent(destinationId)}`
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || "Unable to remove link.");
+        return;
+      }
+
+      clearTopologyResults();
+      setIsCustomTopology(true);
+      await loadNetwork();
+      setTopologyGeneration((generation) => generation + 1);
+      setMessage(`Removed link ${sourceId} ↔ ${destinationId}. ${data.linkCount} links remain.`);
+      appendNetworkEvent(
+        setNetworkEvents,
+        "SYSTEM",
+        `Link ${sourceId} ↔ ${destinationId} removed from the topology.`
+      );
+    } catch (error) {
+      console.error(error);
+      setMessage("Unable to connect to backend while removing link.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2221,6 +2322,8 @@ function App() {
       }
 
       setNewRouterId("");
+      setIsCustomTopology(true);
+      clearTopologyResults();
 
       await loadNetwork();
 
@@ -2319,6 +2422,8 @@ function App() {
         return;
       }
 
+      setIsCustomTopology(true);
+      clearTopologyResults();
       await loadNetwork();
 
       setMessage(
@@ -2388,6 +2493,7 @@ function App() {
         ...previous,
         [linkKey]: String(cost),
       }));
+      setIsCustomTopology(true);
 
       await loadNetwork();
 
@@ -3754,7 +3860,7 @@ function App() {
 
       const response =
         await fetch(
-          `${API_BASE}/reset`
+          `${API_BASE}/reset?size=${encodeURIComponent(topologySelection)}`
         );
 
       const data =
@@ -3770,6 +3876,7 @@ function App() {
         return;
       }
 
+      setIsCustomTopology(false);
       setRoute([]);
 
       setRouteCost(0);
@@ -3815,7 +3922,7 @@ function App() {
             hour12: false,
           }),
           type: "SYSTEM",
-          text: "Network reset successfully. All default routers and links restored.",
+          text: `Network reset to the ${topologySelection} preset. Default routers and links restored.`,
         },
       ]);
 
@@ -3826,7 +3933,7 @@ function App() {
       setTopologyGeneration((generation) => generation + 1);
 
       setMessage(
-        "Network reset successfully."
+        `Network reset to the ${topologySelection} topology preset.`
       );
 
     } catch (error) {
@@ -4182,6 +4289,58 @@ function App() {
         </section>
 
         {/* ==========================================
+            TOPOLOGY PRESETS
+        ========================================== */}
+
+        <section className="panel">
+
+          <div className="panel-header">
+            <div>
+              <h2>Topology Preset</h2>
+              <p>Switch between a compact demonstration and the expanded review topology.</p>
+            </div>
+          </div>
+
+          <div className="link-form-grid">
+            <div className="control-group">
+              <label>Choose preset</label>
+              <select
+                value={topologySelection}
+                onChange={(event) => setTopologySelection(event.target.value)}
+                disabled={loading}
+              >
+                <option value="small">Small Network — 4 routers / 4 links</option>
+                <option value="large">Large Network — 16 routers / 25 links</option>
+              </select>
+            </div>
+
+            <div className="control-group">
+              <label>Current topology</label>
+              <div style={{ padding: "11px 0", color: "#cbd5e1", fontSize: 14 }}>
+                {isCustomTopology
+                  ? `Custom topology · ${network.routers.length} routers · ${network.links.length} links`
+                  : topologySelection === "small"
+                  ? "Small preset · 4 routers · 4 links"
+                  : "Large preset · 16 routers · 25 links"}
+              </div>
+            </div>
+
+            <button
+              className="primary-button"
+              onClick={loadTopologyPreset}
+              disabled={loading}
+            >
+              Load Preset
+            </button>
+          </div>
+
+          <p style={{ margin: "14px 0 0", color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+            Loading a preset replaces the current graph. Use the router and link controls below to create a custom topology, such as a 14-router network.
+          </p>
+
+        </section>
+
+        {/* ==========================================
             ADD ROUTER
         ========================================== */}
 
@@ -4236,6 +4395,48 @@ function App() {
             </button>
 
           </div>
+
+        </section>
+
+        {/* ==========================================
+            REMOVE ROUTER
+        ========================================== */}
+
+        <section className="panel">
+
+          <div className="panel-header">
+            <div>
+              <h2>Remove Router</h2>
+              <p>Remove a router and all links connected to it.</p>
+            </div>
+          </div>
+
+          <div className="add-router-container">
+            <select
+              value={routerToRemove}
+              onChange={(event) => setRouterToRemove(event.target.value)}
+              disabled={loading || network.routers.length <= 2}
+              aria-label="Router to remove"
+            >
+              {network.routers.map((router) => (
+                <option key={router.id} value={router.id}>
+                  Router {router.id}{router.active ? "" : " (failed)"}
+                </option>
+              ))}
+            </select>
+
+            <button
+              className="reset-button"
+              onClick={removeSelectedRouter}
+              disabled={loading || network.routers.length <= 2 || !routerToRemove}
+            >
+              − Remove Router
+            </button>
+          </div>
+
+          <p style={{ margin: "12px 0 0", color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+            Connected links are removed automatically. At least two routers must remain; check route connectivity after removal.
+          </p>
 
         </section>
 
@@ -4374,6 +4575,51 @@ function App() {
             </button>
 
           </div>
+
+        </section>
+
+        {/* ==========================================
+            REMOVE LINK
+        ========================================== */}
+
+        <section className="panel">
+
+          <div className="panel-header">
+            <div>
+              <h2>Remove Link</h2>
+              <p>Remove a connection while keeping its routers.</p>
+            </div>
+          </div>
+
+          <div className="add-router-container">
+            <select
+              value={linkToRemove}
+              onChange={(event) => setLinkToRemove(event.target.value)}
+              disabled={loading || network.links.length === 0}
+              aria-label="Link to remove"
+            >
+              {network.links.map((link) => {
+                const value = JSON.stringify([link.source, link.destination]);
+                return (
+                  <option key={value} value={value}>
+                    {link.source} ↔ {link.destination} (cost {link.cost}){link.active ? "" : " (failed)"}
+                  </option>
+                );
+              })}
+            </select>
+
+            <button
+              className="reset-button"
+              onClick={removeSelectedLink}
+              disabled={loading || network.links.length === 0 || !linkToRemove}
+            >
+              − Remove Link
+            </button>
+          </div>
+
+          <p style={{ margin: "12px 0 0", color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+            Unlike failure simulation, this permanently removes the selected connection until you load or reset a preset.
+          </p>
 
         </section>
 
@@ -5846,6 +6092,72 @@ function App() {
         </section>
 
       </main>
+
+      {confirmDialog && (
+        <div
+          className="resilio-confirm-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              resolveConfirmation(false);
+            }
+          }}
+        >
+          <section
+            className={`resilio-confirm-dialog resilio-confirm-dialog--${confirmDialog.tone || "primary"}`}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="resilio-confirm-title"
+            aria-describedby="resilio-confirm-message"
+            tabIndex={-1}
+          >
+            <button
+              type="button"
+              className="resilio-confirm-close"
+              onClick={() => resolveConfirmation(false)}
+              aria-label="Close confirmation"
+              title="Close"
+            >
+              ×
+            </button>
+
+            <div className="resilio-confirm-symbol" aria-hidden="true">
+              {confirmDialog.tone === "danger" ? "!" : "↻"}
+            </div>
+
+            <div className="resilio-confirm-eyebrow">
+              RESILIO <span>•</span> {confirmDialog.categoryLabel}
+            </div>
+
+            <h2 id="resilio-confirm-title" className="resilio-confirm-title">
+              {confirmDialog.title}
+            </h2>
+
+            <p id="resilio-confirm-message" className="resilio-confirm-message">
+              {confirmDialog.message}
+            </p>
+
+            <div className="resilio-confirm-actions">
+              <button
+                type="button"
+                className="resilio-confirm-button resilio-confirm-button--secondary"
+                onClick={() => resolveConfirmation(false)}
+              >
+                {confirmDialog.cancelLabel}
+              </button>
+
+              <button
+                ref={confirmActionButtonRef}
+                type="button"
+                className={`resilio-confirm-button resilio-confirm-button--${confirmDialog.tone || "primary"}`}
+                onClick={() => resolveConfirmation(true)}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
     </div>
   );

@@ -2458,151 +2458,570 @@ button:disabled {
 }
 
 /* ==========================================
-   INLINE LINK COST EDITOR (RESILIO)
+   TOPOLOGY MANAGEMENT CONTROLS
    ========================================== */
 
-.link-list .cost-edit-item {
-  grid-template-columns:
-    minmax(100px, 0.85fr)
-    minmax(135px, 0.95fr)
-    minmax(85px, 0.55fr)
-    minmax(220px, 1.35fr);
-  gap: 14px;
-  align-items: center;
-}
-
-.cost-edit-connection {
-  font-weight: 700;
-  color: #e2e8f0;
-}
-
-.cost-edit-current {
-  color: #cbd5e1;
-}
-
-.cost-edit-current strong {
-  color: #93c5fd;
-  font-size: 16px;
-}
-
-.cost-edit-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+.add-router-container select {
+  flex: 1;
   min-width: 0;
-}
-
-.cost-edit-controls input {
-  width: 92px;
-  min-width: 70px;
-  padding: 10px 11px;
+  padding: 12px 14px;
+  border-radius: 10px;
   border: 1px solid #334155;
-  border-radius: 8px;
-  outline: none;
-  background: #0b1020;
+  background: #0f172a;
   color: #f8fafc;
-  font: inherit;
+  outline: none;
 }
 
-.cost-edit-controls input:focus {
+.add-router-container select:focus {
   border-color: #60a5fa;
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.15);
 }
 
-.cost-edit-button {
-  border: none;
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #0d9488;
-  color: #ffffff;
-  font: inherit;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.cost-edit-button:hover:not(:disabled) {
-  background: #0f766e;
-}
-
-.cost-edit-button:disabled {
-  opacity: 0.5;
+.add-router-container select:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-@media (max-width: 1000px) {
-  .link-list .cost-edit-item {
-    grid-template-columns: minmax(100px, 1fr) minmax(120px, 1fr);
-  }
+/* =========================================================
+   RESILIO HEADER LOGO SIZE FIX
+   Add these overrides after the existing styles.
+   ========================================================= */
 
-  .cost-edit-controls {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 32px;
+  min-height: 0;
 }
-
-@media (max-width: 650px) {
-  .link-list .cost-edit-item {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .cost-edit-controls {
-    grid-column: auto;
-    width: 100%;
-  }
-
-  .cost-edit-controls input {
-    flex: 1;
-    width: 0;
-  }
-
-  .link-list .cost-edit-item .link-active,
-  .link-list .cost-edit-item .link-failed {
-    text-align: left;
-  }
-}
-
-
-
-/* ==========================================
-   RESILIO BRANDING
-   ========================================== */
 
 .brand-lockup {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: flex-start;
+  gap: 8px;
   min-width: 0;
 }
 
 .brand-logo {
   display: block;
-  height: 52px;
-  width: auto;
-  max-width: min(420px, 60vw);
+  width: min(460px, 46vw);
+  max-width: 100%;
+  height: auto;
+  max-height: 128px;
   object-fit: contain;
   object-position: left center;
-  user-select: none;
 }
 
 .brand-lockup p {
   margin: 0;
   color: #94a3b8;
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
-@media (max-width: 650px) {
+.topbar .system-status {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    padding: 16px 18px;
+    gap: 14px;
+  }
+
   .brand-logo {
-    height: 46px;
-    max-width: min(320px, 86vw);
+    width: min(360px, 62vw);
+    max-height: 100px;
   }
 
   .brand-lockup p {
     font-size: 12px;
-    max-width: 86vw;
+  }
+
+  .topbar .system-status {
+    font-size: 12px;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .brand-logo {
+    width: min(300px, 68vw);
+    max-height: 82px;
+  }
+
+  .topbar .system-status {
+    padding-top: 6px;
+    font-size: 11px;
+  }
+}
+
+
+/* =========================================================
+   RESILIO BRANDED CONFIRMATION DIALOGS
+   Replaces native browser confirm() pop-ups across the app.
+   ========================================================= */
+.resilio-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(3, 8, 20, 0.76);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: resilio-confirm-fade-in 160ms ease-out both;
+}
+
+.resilio-confirm-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 30px 30px 24px;
+  border: 1px solid #2a3b57;
+  border-radius: 22px;
+  color: #f8fafc;
+  background: linear-gradient(155deg, #152238 0%, #0e1728 72%);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(96, 165, 250, 0.06) inset;
+  animation: resilio-confirm-pop-in 190ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.resilio-confirm-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #22d3ee, #3b82f6, #22c55e);
+}
+
+.resilio-confirm-dialog--danger::before {
+  background: linear-gradient(90deg, #fb7185, #ef4444, #f97316);
+}
+
+.resilio-confirm-close {
+  position: absolute;
+  top: 14px;
+  right: 15px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #93a4bb;
+  background: transparent;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.resilio-confirm-close:hover {
+  color: #fff;
+  border-color: #334663;
+  background: #1e2c42;
+}
+
+.resilio-confirm-symbol {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 15px;
+  color: #67e8f9;
+  background: rgba(14, 165, 233, 0.12);
+  box-shadow: 0 0 26px rgba(14, 165, 233, 0.08);
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.resilio-confirm-dialog--danger .resilio-confirm-symbol {
+  border-color: rgba(248, 113, 113, 0.38);
+  color: #fda4af;
+  background: rgba(239, 68, 68, 0.12);
+  box-shadow: 0 0 26px rgba(239, 68, 68, 0.08);
+}
+
+.resilio-confirm-eyebrow {
+  margin-bottom: 9px;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  line-height: 1.4;
+}
+
+.resilio-confirm-eyebrow span {
+  margin: 0 5px;
+  color: #475569;
+}
+
+.resilio-confirm-dialog--danger .resilio-confirm-eyebrow {
+  color: #fda4af;
+}
+
+.resilio-confirm-title {
+  margin: 0 32px 10px 0;
+  color: #f8fafc;
+  font-size: clamp(21px, 3vw, 25px);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.28;
+}
+
+.resilio-confirm-message {
+  margin: 0;
+  color: #a8b9ce;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.resilio-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(71, 85, 105, 0.42);
+}
+
+.resilio-confirm-button {
+  min-height: 43px;
+  padding: 11px 17px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.resilio-confirm-button:hover {
+  transform: translateY(-1px);
+}
+
+.resilio-confirm-button:focus-visible,
+.resilio-confirm-close:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.58);
+  outline-offset: 3px;
+}
+
+.resilio-confirm-button--secondary {
+  border-color: #33445d;
+  color: #d6e2f0;
+  background: #172438;
+}
+
+.resilio-confirm-button--secondary:hover {
+  border-color: #526985;
+  background: #203149;
+}
+
+.resilio-confirm-button--primary {
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #0e8bcf);
+  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.2);
+}
+
+.resilio-confirm-button--primary:hover {
+  background: linear-gradient(135deg, #3475f7, #119edc);
+  box-shadow: 0 9px 22px rgba(37, 99, 235, 0.28);
+}
+
+.resilio-confirm-button--danger {
+  color: #fff;
+  background: linear-gradient(135deg, #dc2626, #be123c);
+  box-shadow: 0 7px 18px rgba(220, 38, 38, 0.18);
+}
+
+.resilio-confirm-button--danger:hover {
+  background: linear-gradient(135deg, #ef4444, #e11d48);
+  box-shadow: 0 9px 22px rgba(220, 38, 38, 0.27);
+}
+
+@keyframes resilio-confirm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes resilio-confirm-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 520px) {
+  .resilio-confirm-backdrop { padding: 14px; }
+  .resilio-confirm-dialog { padding: 25px 20px 19px; border-radius: 18px; }
+  .resilio-confirm-actions { flex-direction: column-reverse; }
+  .resilio-confirm-button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resilio-confirm-backdrop,
+  .resilio-confirm-dialog { animation: none; }
+  .resilio-confirm-button,
+  .resilio-confirm-close { transition: none; }
+}
+
+/* =========================================================
+   RESILIO THEME POLISH: DARK HEALTH CARDS + LINK COST BUTTON
+   Appended overrides keep the existing JSX and functionality.
+   ========================================================= */
+
+.health-overall-card {
+  background: linear-gradient(145deg, #111f33 0%, #0d1728 100%) !important;
+  border: 1px solid #2a3c56 !important;
+  color: #e7f0fc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.health-score-ring {
+  background: #0b1424 !important;
+  border-color: #24528e !important;
+  box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.08), 0 8px 24px rgba(0, 0, 0, 0.22) !important;
+}
+
+.health-score-value {
+  color: #f5f9ff !important;
+}
+
+.health-score-label {
+  color: #91a7c4 !important;
+}
+
+.health-overall-copy strong {
+  color: #eff6ff !important;
+}
+
+.health-overall-copy span {
+  color: #a1b4cc !important;
+}
+
+.health-mini-card {
+  background: linear-gradient(145deg, #111f33 0%, #0d1728 100%) !important;
+  border-color: #2a3c56 !important;
+  color: #eaf2ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.health-mini-card:hover {
+  border-color: #3d5a7e !important;
+  transform: translateY(-1px);
+}
+
+.health-mini-card span {
+  color: #91a8c6 !important;
+}
+
+.health-mini-card strong {
+  color: #f3f7ff !important;
+}
+
+.health-link-row {
+  background: linear-gradient(110deg, #111e31 0%, #0d1728 100%) !important;
+  border-color: #283b55 !important;
+  color: #e6eefb;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.health-link-row:hover {
+  border-color: #3b5778 !important;
+  background: linear-gradient(110deg, #14243a 0%, #0f1b2e 100%) !important;
+}
+
+.health-link-name strong {
+  color: #dbeafe !important;
+}
+
+.health-link-name span {
+  color: #91a7c4 !important;
+}
+
+.health-telemetry-grid span {
+  color: #94a9c4 !important;
+}
+
+.health-telemetry-grid strong {
+  color: #f0f6ff !important;
+}
+
+.health-progress-track {
+  background: #25344a !important;
+}
+
+.health-status-text {
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.health-status-text.health-good {
+  color: #5ee6a0 !important;
+  background: rgba(34, 197, 94, 0.13) !important;
+}
+
+.health-status-text.health-warning {
+  color: #fbbf24 !important;
+  background: rgba(245, 158, 11, 0.13) !important;
+}
+
+.health-status-text.health-critical {
+  color: #fda4af !important;
+  background: rgba(239, 68, 68, 0.14) !important;
+}
+
+/* The Network Links cost editor: align its four pieces and style the button. */
+.link-item.cost-edit-item {
+  grid-template-columns: minmax(75px, 0.55fr) minmax(135px, 1fr) minmax(75px, 0.5fr) minmax(205px, 1.2fr);
+  gap: 14px;
+  background: linear-gradient(115deg, #111e31 0%, #0d1728 100%) !important;
+  border: 1px solid #283b55 !important;
+  color: #e7effc;
+  border-radius: 13px;
+  padding: 14px 16px;
+}
+
+.cost-edit-connection {
+  color: #c6e5ff;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+}
+
+.cost-edit-current {
+  color: #90a5c0;
+  font-size: 12px;
+}
+
+.cost-edit-current strong {
+  color: #f1f6ff;
+  font-size: 14px;
+}
+
+.cost-edit-item .link-active {
+  color: #4adea0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.cost-edit-item .link-failed {
+  color: #fda4af;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.cost-edit-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  min-width: 0;
+}
+
+.cost-edit-controls input {
+  width: 76px;
+  min-width: 64px;
+  height: 39px;
+  padding: 8px 10px;
+  border: 1px solid #344a66;
+  border-radius: 9px;
+  outline: none;
+  background: #091323;
+  color: #eff6ff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.cost-edit-controls input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.13);
+}
+
+.cost-edit-button {
+  min-height: 39px;
+  padding: 9px 14px;
+  border: 1px solid #3788f7;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb 0%, #087eb9 100%);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.16);
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+
+.cost-edit-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.09);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.27);
+}
+
+.cost-edit-button:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.42);
+  outline-offset: 2px;
+}
+
+.cost-edit-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (max-width: 1000px) {
+  .link-item.cost-edit-item {
+    grid-template-columns: minmax(70px, 0.6fr) minmax(120px, 1fr);
+  }
+
+  .cost-edit-item .link-active,
+  .cost-edit-item .link-failed {
+    text-align: left;
+  }
+
+  .cost-edit-controls {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .link-item.cost-edit-item {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 13px;
+  }
+
+  .cost-edit-controls {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .cost-edit-controls input {
+    flex: 0 0 78px;
+  }
+
+  .cost-edit-button {
+    flex: 1;
   }
 }
